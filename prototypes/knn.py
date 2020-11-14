@@ -6,6 +6,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.preprocessing import StandardScaler
 
+# Simple prototype of KNN on the dataset
+
 data_raw = pd.read_csv("../creditcard.csv")
 X = data_raw.iloc[:, :-1].values
 Y = data_raw.iloc[:, 30].values
