@@ -28,7 +28,7 @@ print(Y_train.shape)
 
 classifier = KNeighborsClassifier()
 classifier.fit(X_train, Y_train)
-
+print(classifier.score(X_test, Y_test))
 Y_pred = classifier.predict(X_test)
 print(confusion_matrix(Y_test, Y_pred))
 print(classification_report(Y_test, Y_pred))
