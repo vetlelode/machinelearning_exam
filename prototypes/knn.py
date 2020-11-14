@@ -8,7 +8,7 @@ from sklearn.preprocessing import StandardScaler
 
 # Simple prototype of KNN on the dataset
 
-data_raw = pd.read_csv("../creditcard.csv")
+data_raw = pd.read_csv("../data/creditcard.csv")
 X = data_raw.iloc[:, :-1].values
 Y = data_raw.iloc[:, 30].values
 X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.5)
