@@ -17,9 +17,9 @@ if __name__ == '__main__':
                 fraud_data.append(processed_line)
             else:
                 real_data.append(processed_line)
-    with open("../data/fraud_data.csv", "w") as data_file:
+    with open("../data/fake.csv", "w") as data_file:
         data_file.write(labels + "\n" + ("\n".join(fraud_data)))
 
-    with open("../data/real_data.csv", "w") as data_file:
+    with open("../data/real.csv", "w") as data_file:
         data_file.write(labels + "\n" + ("\n".join(real_data)))
     print("success!")
