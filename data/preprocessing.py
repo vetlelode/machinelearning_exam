@@ -78,6 +78,8 @@ def files_absent():
     try:
         with open("real.csv", "r"):
             pass
+        with open("fake.csv", "r"):
+            pass
     except IOError:
         return True
     else:
