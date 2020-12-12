@@ -15,7 +15,7 @@ def process_lines(lines: list) -> list:
     return [[float(f) for f in process_line(line).split(",")] for line in lines[1:]]
 
 
-def split_training_data(data: list, anomalous_data: list, f: float = 0.5) -> list:
+def split_training_data(data: list, anomalous_data: list, f: float = 0.5) -> tuple:
     k = int((1-f) * len(anomalous_data))
 
     test_rdata, training_rdata = sample_split(data, k)
@@ -24,7 +24,8 @@ def split_training_data(data: list, anomalous_data: list, f: float = 0.5) -> lis
     training_data = training_adata + training_rdata
     random.shuffle(test_data)
     random.shuffle(training_data)
-    return [*[split_XY(training_data), split_XY(test_data)]]
+    return *split_XY(training_data), *split_XY(test_data)
+
 
 def split_XY(data: list)->tuple:
     X, Y = [], []
@@ -108,3 +109,4 @@ if __name__ == '__main__':
         print("success!")
     else:
         print("ok")
+        print(len(get_dataset(100, 100)))
