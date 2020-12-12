@@ -3,7 +3,7 @@ import re
 import random
 
 
-REAL_DATA_MAX_N: int = 284807
+REAL_DATA_MAX_N: int = 284315
 FAKE_DATA_MAX_N: int = 492
 
 
@@ -102,7 +102,7 @@ if __name__ == '__main__':
         print("success!")
     else:
         print("ok")
-        training_data, test_data = get_dataset(1000, 100, 0)
+        training_data, test_data = get_dataset(1000000, 10000, 0.5)
         print(len(training_data), len(test_data))
         print(sum([line[-1] for line in training_data]))
         print(sum([line[-1] for line in test_data]))
