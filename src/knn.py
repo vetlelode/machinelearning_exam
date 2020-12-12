@@ -23,7 +23,10 @@ Prototype implmentation of an KNN based solution with a 50/50 dataset
 RATIO = 20
 
 training_data, test_data = get_dataset(1000, 100, 0.5)
-
+cols = ["Time", "V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "V10", "V11", "V12", "V13", "V14", "V15",
+        "V16", "V17", "V18", "V19", "V20", "V21", "V22", "V23", "V24", "V25", "V26", "V27", "V28", "Amount", "Class"]
+combined = pd.DataFrame(training_data, columns=cols)
+full = pd.DataFrame(test_data, columns=cols)
 
 fake = pd.read_csv("../data/fake.csv")
 real = pd.read_csv("../data/real.csv")
@@ -36,9 +39,9 @@ real_init, real_final = train_test_split(real, test_size=0.8)
 full = pd.concat([fake_final, real_final])
 full = full.sample(frac=1)
 
-combined = pd.concat(
-    [fake_init, real_init.sample(n=len(fake_init) * RATIO * 2)])
-combined = combined.sample(frac=1)
+# combined = pd.concat(
+# [fake_init, real_init.sample(n=len(fake_init) * RATIO * 2)])
+# combined = combined.sample(frac=1)
 
 X = combined.iloc[:, :-1]
 Y = combined['Class']
@@ -58,7 +61,7 @@ print("Results running on the modified dataset:")
 print(confusion_matrix(Y_test, Y_pred))
 print(classification_report(Y_test, Y_pred))
 # if sys.argv[2] == "-p":
-#plotDescRegion(X_train, Y_train)
+# plotDescRegion(X_train, Y_train)
 
 # Only run on the full dataset if -f is provided as a argument
 if len(sys.argv) >= 2 and sys.argv[1] == "-f":
