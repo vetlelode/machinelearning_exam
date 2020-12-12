@@ -1,3 +1,4 @@
 creditcard.csv
 .vscode
 real.csv
+*__pycache__*

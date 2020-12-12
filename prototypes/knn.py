@@ -1,12 +1,12 @@
-import numpy as np
-import matplotlib.pyplot as plt
 import pandas as pd
-import sys
+import matplotlib.pyplot as plt
+import numpy as np
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.preprocessing import StandardScaler
-from data.preprocessing import get_dataset
+import sys
+from data.preprocessing import *
 
 
 def plotDescRegion(X, y) -> None:
@@ -22,7 +22,7 @@ Prototype implmentation of an KNN based solution with a 50/50 dataset
 # Change this to change the ratio of real to fake in the training set
 RATIO = 20
 
-training, test = get_dataset()
+training_data, test_data = get_dataset(1000, 100, 0.5)
 
 fake = pd.read_csv("../data/fake.csv")
 real = pd.read_csv("../data/real.csv")
