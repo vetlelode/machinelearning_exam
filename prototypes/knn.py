@@ -11,20 +11,23 @@ from sklearn.preprocessing import StandardScaler
 Prototype implmentation of an KNN based solution with a 50/50 dataset
 """
 # Change this to change the ratio of real to fake in the training set
-RATIO = 4
+RATIO = 20
 
 fake = pd.read_csv("../data/fake.csv")
 real = pd.read_csv("../data/real.csv")
 
 # Split all the actual scams into two
 fake_init, fake_final = train_test_split(fake, test_size=0.5)
+real_init, real_final = train_test_split(real, test_size=0.8)
 
-# Create two datasets one with all the data and one split 50/50
-full = pd.concat([fake_final, real])
+# Create two datasets one with all the data and one split with the ratio set above
+full = pd.concat([fake_final, real_final])
 full = full.sample(frac=1)
 
-combined = pd.concat([fake_init, real.sample(n=len(fake_init) * RATIO)])
+combined = pd.concat(
+    [fake_init, real_init.sample(n=len(fake_init) * RATIO * 2)])
 combined = combined.sample(frac=1)
+
 X = combined.iloc[:, :-1]
 Y = combined['Class']
 X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2)
@@ -39,7 +42,7 @@ classifier.fit(X_train, Y_train)
 Y_pred = classifier.predict(X_test)
 
 # Print out various metrics about the accuracy on a 50/50 dataset
-print("Results running on a modified dataset:")
+print("Results running on the modified dataset:")
 print(confusion_matrix(Y_test, Y_pred))
 print(classification_report(Y_test, Y_pred))
 
