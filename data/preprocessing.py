@@ -84,9 +84,9 @@ def preprocess_files():
 
 def files_absent():
     try:
-        with open("real.csv", "r"):
+        with open("../data/real.csv", "r"):
             pass
-        with open("fake.csv", "r"):
+        with open("../data/fake.csv", "r"):
             pass
     except IOError:
         return True
