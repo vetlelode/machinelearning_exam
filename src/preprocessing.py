@@ -15,7 +15,7 @@ def process_lines(lines: list) -> list:
     return [[float(f) for f in process_line(line).split(",")] for line in lines[1:]]
 
 
-def split_training_data(data: list, anomalous_data: list, f: float = 0.5) -> tuple:
+def split_training_data(data: list, anomalous_data: list, f: float = 0.5) -> list:
     k = int((1-f) * len(anomalous_data))
 
     test_rdata, training_rdata = sample_split(data, k)
