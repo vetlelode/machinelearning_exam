@@ -53,11 +53,11 @@ def get_dataset(k1: int, k2: int):
     k1 = min(k1, REAL_DATA_MAX_N)
     k2 = min(k2, FAKE_DATA_MAX_N)
     anomalous_data, real_data = [], []
-    with open("real.csv", "r") as data_file:
+    with open("../data/real.csv", "r") as data_file:
         lines = [next(data_file) for _ in range(k1+1)]
         real_data += process_lines(lines)
 
-    with open("fake.csv", "r") as data_file:
+    with open("../data/fake.csv", "r") as data_file:
         lines = [next(data_file) for _ in range(k2+1)]
         anomalous_data += process_lines(lines)
 
