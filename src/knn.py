@@ -22,22 +22,12 @@ Prototype implmentation of an KNN based solution with a 50/50 dataset
 # Change this to change the ratio of real to fake in the training set
 RATIO = 20
 
-training_data, test_data = get_dataset(1000, 100, 0.5)
+training_data, test_data = get_dataset(20000, 450)
 cols = ["Time", "V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "V10", "V11", "V12", "V13", "V14", "V15",
         "V16", "V17", "V18", "V19", "V20", "V21", "V22", "V23", "V24", "V25", "V26", "V27", "V28", "Amount", "Class"]
 combined = pd.DataFrame(training_data, columns=cols)
 full = pd.DataFrame(test_data, columns=cols)
-
-fake = pd.read_csv("../data/fake.csv")
-real = pd.read_csv("../data/real.csv")
-
-# Split all the actual scams into two
-fake_init, fake_final = train_test_split(fake, test_size=0.5)
-real_init, real_final = train_test_split(real, test_size=0.8)
-
-# Create two datasets one with all the data and one split with the ratio set above
-full = pd.concat([fake_final, real_final])
-full = full.sample(frac=1)
+print(combined)
 
 # combined = pd.concat(
 # [fake_init, real_init.sample(n=len(fake_init) * RATIO * 2)])
