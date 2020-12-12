@@ -2,14 +2,18 @@
 import re
 import random
 
+
 REAL_DATA_MAX_N: int = 284807
 FAKE_DATA_MAX_N: int = 492
+
 
 def process_line(text: str) -> str:
     return re.sub("[\"\n]", "", text)
 
+
 def process_lines(lines: list) -> list:
     return [[float(f) for f in process_line(line).split(",")] for line in lines[1:]]
+
 
 def split_training_data(data: list, anomalous_data: list) -> tuple:
     k = len(anomalous_data)//2
@@ -21,6 +25,7 @@ def split_training_data(data: list, anomalous_data: list) -> tuple:
     random.shuffle(training_data)
     return training_data, test_data
 
+
 def sample_split(data: list, k: int) -> tuple:
     tmp = list(data)
     list_1, list_2 = [], []
@@ -31,6 +36,7 @@ def sample_split(data: list, k: int) -> tuple:
     random.shuffle(tmp)
     list_2 += tmp
     return list_1, list_2
+
 
 def get_dataset(k1: int, k2: int):
     """
@@ -57,6 +63,7 @@ def get_dataset(k1: int, k2: int):
 
     return split_training_data(real_data, anomalous_data)
 
+
 def preprocess_files():
     with open("../data/creditcard.csv", "r") as data_file:
         lines = data_file.readlines()
@@ -74,6 +81,7 @@ def preprocess_files():
     with open("../data/real.csv", "w") as data_file:
         data_file.write(labels + "\n" + ("\n".join(real_data)))
 
+
 def files_absent():
     try:
         with open("real.csv", "r"):
@@ -85,9 +93,11 @@ def files_absent():
     else:
         return False
 
+
 if __name__ == '__main__':
     if input("preprocess the files? y/n ") == "y":
         preprocess_files()
         print("success!")
     else:
         print("ok")
+
