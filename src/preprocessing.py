@@ -24,7 +24,7 @@ def split_training_data(data: list, anomalous_data: list, f: float = 0.5) -> tup
     training_data = training_adata + training_rdata
     random.shuffle(test_data)
     random.shuffle(training_data)
-    return split_XY(training_data), split_XY(test_data)
+    return [*[split_XY(training_data), split_XY(test_data)]]
 
 def split_XY(data: list)->tuple:
     X, Y = [], []
@@ -51,7 +51,7 @@ def get_dataset(k1: int, k2: int, f: float = 0.5):
     :param k1: the amount of entries to read from the real data
     :param k2: the amount of entries to read from the anomalous data
     :param f: how much of the anomalous data should be in the training data (0<=f<=1)
-    :return: training_data, test_data
+    :return: training_data (X,Y), test_data (X, Y)
     """
     if files_absent():
         print("preprocessing files. This may take a while")
