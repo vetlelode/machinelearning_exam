@@ -24,8 +24,14 @@ def split_training_data(data: list, anomalous_data: list, f: float = 0.5) -> tup
     training_data = training_adata + training_rdata
     random.shuffle(test_data)
     random.shuffle(training_data)
-    return training_data, test_data
+    return split_XY(training_data), split_XY(test_data)
 
+def split_XY(data: list)->tuple:
+    X, Y = [], []
+    for item in data:
+        X += [item[:-1]]
+        Y += [item[-1]]
+    return X, Y
 
 def sample_split(data: list, k: int) -> tuple:
     tmp = list(data)
@@ -102,7 +108,3 @@ if __name__ == '__main__':
         print("success!")
     else:
         print("ok")
-        training_data, test_data = get_dataset(1000000, 10000, 0.5)
-        print(len(training_data), len(test_data))
-        print(sum([line[-1] for line in training_data]))
-        print(sum([line[-1] for line in test_data]))
