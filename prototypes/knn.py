@@ -6,7 +6,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.preprocessing import StandardScaler
 import sys
-from data.preprocessing import *
+from preprocessing import get_dataset
 
 
 def plotDescRegion(X, y) -> None:
@@ -23,6 +23,7 @@ Prototype implmentation of an KNN based solution with a 50/50 dataset
 RATIO = 20
 
 training_data, test_data = get_dataset(1000, 100, 0.5)
+
 
 fake = pd.read_csv("../data/fake.csv")
 real = pd.read_csv("../data/real.csv")
