@@ -7,7 +7,6 @@ from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import GridSearchCV
 import sys
-from plotting import plotConfusion
 
 """
 Prototype implmentation of an KNN based solution with a 50/50 dataset
