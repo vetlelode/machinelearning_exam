@@ -15,6 +15,10 @@ Prototype implmentation of an KNN based solution with a 50/50 dataset
 
 
 def runKNN(X_train, Y_train, X_test, Y_test) -> list:
+    """
+    Trains and tests a KNN algorithm on the supplied data and returns the predictions.
+    """
+    print(len(X_train), len(X_test))
 
     scaler = StandardScaler()
     scaler.fit(X_train)
@@ -29,6 +33,9 @@ def runKNN(X_train, Y_train, X_test, Y_test) -> list:
 
 
 def knnGridSearch(X_train, Y_train, X_test, Y_test) -> list:
+    """
+    Used to run a grid search to find the best params for later usage
+    """
     grid_params = {
         'n_neighbors': [1, 3, 5],
         'weights': ['uniform', 'distance'],
