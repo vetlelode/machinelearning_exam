@@ -5,6 +5,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import GridSearchCV
 import sys
 from plotting import plotConfusion
 
@@ -24,4 +25,28 @@ def runKNN(X_train, Y_train, X_test, Y_test) -> list:
     classifier.fit(X_train, Y_train)
     Y_pred = classifier.predict(X_test)
 
-    return [Y_test, Y_pred]
+    return Y_pred
+
+
+def knnGridSearch(X_train, Y_train, X_test, Y_test) -> list:
+    grid_params = {
+        'n_neighbors': [1, 3, 5],
+        'weights': ['uniform', 'distance'],
+        'metric': ['minkowski', 'manhattan'],
+    }
+    reduced_params = {
+        'n_neighbors': [1],
+        'weights': ['uniform', 'distance'],
+        'metric': ['minkowski', 'manhattan'],
+    }
+    scaler = StandardScaler()
+    scaler.fit(X_train)
+    X_train = scaler.transform(X_train)
+    X_test = scaler.transform(X_test)
+
+    classifier = KNeighborsClassifier()
+    gs = GridSearchCV(classifier, grid_params, verbose=1, cv=3, n_jobs=-1)
+    res = gs.fit(X_train, Y_train)
+    print(res)
+    pred = gs.predict(X_test)
+    print(confusion_matrix(Y_test, pred))
