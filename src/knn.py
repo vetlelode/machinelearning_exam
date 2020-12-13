@@ -22,13 +22,14 @@ Prototype implmentation of an KNN based solution with a 50/50 dataset
 # Change this to change the ratio of real to fake in the training set
 RATIO = 20
 
-X_train, Y_train, X_test, Y_test = get_dataset(20000, 450)
+X_train, Y_train, X_test, Y_test = get_dataset(50000, 450, 0.2)
+print(len(X_train[0]))
 cols = ["Time", "V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "V10", "V11", "V12", "V13", "V14", "V15",
-        "V16", "V17", "V18", "V19", "V20", "V21", "V22", "V23", "V24", "V25", "V26", "V27", "V28", "Amount", "Class"]
+        "V16", "V17", "V18", "V19", "V20", "V21", "V22", "V23", "V24", "V25", "V26", "V27", "V28", "Amount"]
 X_train = pd.DataFrame(X_train, columns=cols)
-Y_train = pd.DataFrame(Y_train, columns=cols)
+Y_train = pd.DataFrame(Y_train, columns=["Class"])
 X_test = pd.DataFrame(X_test, columns=cols)
-Y_test = pd.DataFrame(Y_test, columns=cols)
+Y_test = pd.DataFrame(Y_test, columns=["Class"])
 
 
 scaler = StandardScaler()
@@ -36,7 +37,7 @@ scaler.fit(X_train)
 X_train = scaler.transform(X_train)
 X_test = scaler.transform(X_test)
 
-classifier = KNeighborsClassifier()
+classifier = KNeighborsClassifier(n_neighbors=1)
 classifier.fit(X_train, Y_train)
 Y_pred = classifier.predict(X_test)
 
