@@ -24,15 +24,16 @@ def split_training_data(data: list, anomalous_data: list, f: float = 0.5) -> tup
     training_data = training_adata + training_rdata
     random.shuffle(test_data)
     random.shuffle(training_data)
-    return *split_XY(training_data), *split_XY(test_data)
+    return (*split_XY(training_data), *split_XY(test_data))
 
 
-def split_XY(data: list)->tuple:
+def split_XY(data: list) -> tuple:
     X, Y = [], []
     for item in data:
         X += [item[:-1]]
         Y += [item[-1]]
     return X, Y
+
 
 def sample_split(data: list, k: int) -> tuple:
     tmp = list(data)
