@@ -39,8 +39,9 @@ def knn_NCA(X_train, Y_train, X_test, Y_test, K=1) -> list:
     Reduce the dimensionalty of the dataset using the NCA method
     """
     scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
+    #X_train = scaler.fit_transform(X_train)
+    #X_test = scaler.transform(X_test)
+    # Reduce the dimensionalty of the data using NCA
     nca = NeighborhoodComponentsAnalysis(2).fit(X_train, Y_train)
     x_train_nca = nca.transform(X_train)
     x_test_nca = nca.transform(X_test)
@@ -60,33 +61,12 @@ def knn_NCA(X_train, Y_train, X_test, Y_test, K=1) -> list:
     return y_pred
 
 
-def knnGridSearch(X_train, Y_train, X_test, Y_test) -> list:
-    """
-    Used to run a grid search to find the best params for later usage
-    """
-    grid_params = {
-        'n_neighbors': [1, 3, 5],
-        'weights': ['uniform', 'distance'],
-        'metric': ['minkowski', 'manhattan'],
-    }
-
-    scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
-
-    classifier = KNeighborsClassifier()
-    gs = GridSearchCV(classifier, grid_params, verbose=1, cv=3, n_jobs=-1)
-    res = gs.fit(X_train, Y_train)
-    print(res)
-    pred = gs.predict(X_test)
-    print(confusion_matrix(Y_test, pred))
-
-
 def dim_reduc(X_train, Y_train, X_test, Y_test, K=1) -> None:
     """
     Compare PCA and NCA dimensionalty reduction.
     Example taken from:
     https://scikit-learn.org/stable/auto_examples/neighbors/plot_nca_dim_reduction.html
+    Only runs if the -dim argument is provided
     """
     X = pd.concat([X_train, X_test])
     Y = Y_train + Y_test
@@ -127,3 +107,26 @@ def dim_reduc(X_train, Y_train, X_test, Y_test, K=1) -> None:
         plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=Y, s=30, cmap='Set1')
 
     plt.show()
+
+
+def knnGridSearch(X_train, Y_train, X_test, Y_test) -> list:
+    """
+    Used to run a grid search to find the best params for later usage
+    Only runs if the param -grid is provided 
+    """
+    grid_params = {
+        'n_neighbors': [1, 3, 5],
+        'weights': ['uniform', 'distance'],
+        'metric': ['minkowski', 'manhattan'],
+    }
+
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.transform(X_test)
+
+    classifier = KNeighborsClassifier()
+    gs = GridSearchCV(classifier, grid_params, verbose=1, cv=3, n_jobs=-1)
+    res = gs.fit(X_train, Y_train)
+    print(res)
+    pred = gs.predict(X_test)
+    print(confusion_matrix(Y_test, pred))

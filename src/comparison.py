@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 from preprocessing import get_dataset
 from knn import runKNN, knnGridSearch, knn_NCA, dim_reduc
+import seaborn as sn
+import matplotlib.pyplot as plt
 
 
 def runComp():
@@ -22,7 +24,7 @@ def runComp():
         elif sys.argv[1] == "-corr":
             correlationMatrix()
         elif sys.argv[1] == "-nca":
-            Y_pred_pca = knn_NCA(X_train, Y_train, X_test, Y_test)
+            Y_pred_pca = knn_NCA(X_train, Y_train, X_test, Y_test, 1)
             cf_knn_pca = confusion_matrix(Y_test, Y_pred_pca)
             print("Confusion matrix for KNN with NCA:\n{}".format(cf_knn_pca))
         elif sys.argv[1] == "-dim":
@@ -38,8 +40,6 @@ def correlationMatrix():
     corrMatrix = df.corr()
     res = corrMatrix.sort_values(by=['Class'], ascending=False)
     print(res['Class'])
-    import seaborn as sn
-    import matplotlib.pyplot as plt
     sn.heatmap(corrMatrix, annot=True)
     plt.show()
 
