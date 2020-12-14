@@ -35,6 +35,9 @@ def runKNN(X_train, Y_train, X_test, Y_test, K=1) -> list:
 
 
 def knn_NCA(X_train, Y_train, X_test, Y_test, K=1) -> list:
+    """
+    Reduce the dimensionalty of the dataset using the NCA method
+    """
     scaler = StandardScaler()
     X_train = scaler.fit_transform(X_train)
     X_test = scaler.transform(X_test)
@@ -45,7 +48,7 @@ def knn_NCA(X_train, Y_train, X_test, Y_test, K=1) -> list:
     x_train_nca = pd.DataFrame(x_train_nca)
     x_test_nca = pd.DataFrame(x_test_nca)
 
-    plt.scatter(x_train_nca[0], x_train_nca[1], c=Y_train, alpha=0.8)
+    plt.scatter(x_train_nca[0], x_train_nca[1], c=Y_train, s=30, cmap='Set1')
     plt.title('Scatter plot')
     plt.xlabel('x')
     plt.ylabel('y')
@@ -80,17 +83,17 @@ def knnGridSearch(X_train, Y_train, X_test, Y_test) -> list:
 
 
 def dim_reduc(X_train, Y_train, X_test, Y_test, K=1) -> None:
+    """
+    Compare PCA and NCA dimensionalty reduction.
+    Example taken from:
+    https://scikit-learn.org/stable/auto_examples/neighbors/plot_nca_dim_reduction.html
+    """
     X = pd.concat([X_train, X_test])
     Y = Y_train + Y_test
-    print(X)
     random_state = 0
     # Reduce dimension to 2 with PCA
     pca = make_pipeline(StandardScaler(),
                         PCA(n_components=2, random_state=random_state))
-
-    # Reduce dimension to 2 with LinearDiscriminantAnalysis
-    lda = make_pipeline(StandardScaler(),
-                        LinearDiscriminantAnalysis())
 
     # Reduce dimension to 2 with NeighborhoodComponentAnalysis
     nca = make_pipeline(StandardScaler(),
