@@ -29,18 +29,18 @@ def runKNN(X_train, Y_train, X_test, Y_test, K=1) -> list:
 
     classifier = KNeighborsClassifier(n_neighbors=K)
     classifier.fit(X_train, Y_train)
-    Y_pred = classifier.predict(X_test)
-
-    return Y_pred
+    return classifier.predict(X_test)
 
 
 def knn_NCA(X_train, Y_train, X_test, Y_test, K=1) -> list:
     """
     Reduce the dimensionalty of the dataset using the NCA method
+    This is slower than using PCA or not using anything at all,
+    but yields better results for now
     """
     scaler = StandardScaler()
-    #X_train = scaler.fit_transform(X_train)
-    #X_test = scaler.transform(X_test)
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.transform(X_test)
     # Reduce the dimensionalty of the data using NCA
     nca = NeighborhoodComponentsAnalysis(2).fit(X_train, Y_train)
     x_train_nca = nca.transform(X_train)
@@ -57,8 +57,7 @@ def knn_NCA(X_train, Y_train, X_test, Y_test, K=1) -> list:
 
     clf = KNeighborsClassifier(n_neighbors=K, weights="distance")
     clf.fit(x_train_nca, Y_train)
-    y_pred = clf.predict(x_test_nca)
-    return y_pred
+    return clf.predict(x_test_nca)
 
 
 def dim_reduc(X_train, Y_train, X_test, Y_test, K=1) -> None:
