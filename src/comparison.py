@@ -3,24 +3,45 @@ import sys
 import numpy as np
 import pandas as pd
 from preprocessing import get_dataset
-from knn import runKNN, knnGridSearch
+from knn import runKNN, knnGridSearch, knn_NCA, dim_reduc
 
 
 def runComp():
-    X_train, Y_train, X_test, Y_test = get_dataset(50000, 450, 0.2)
+    X_train, Y_train, X_test, Y_test = get_dataset(4000, 400, 0.5)
     cols = ["Time", "V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "V10", "V11", "V12", "V13", "V14", "V15",
             "V16", "V17", "V18", "V19", "V20", "V21", "V22", "V23", "V24", "V25", "V26", "V27", "V28", "Amount"]
     X_train = pd.DataFrame(X_train, columns=cols)
-    # Y_train = pd.DataFrame(Y_train, columns=["Class"])
     X_test = pd.DataFrame(X_test, columns=cols)
 
-    # Y_test = pd.DataFrame(Y_test, columns=["Class"])
-    # Run a grid search to find the best params if the argument -grid is provdided
-    if len(sys.argv) >= 2 and sys.argv[1] == "-grid":
-        findBestParams(X_train, Y_train, X_test, Y_test)
-    knn = runKNN(X_train, Y_train, X_test, Y_test)
-    cf_knn = confusion_matrix(Y_test, knn)
+    Y_pred = runKNN(X_train, Y_train, X_test, Y_test)
+    cf_knn = confusion_matrix(Y_test, Y_pred)
     print("Confusion matrix for KNN:\n{}".format(cf_knn))
+    if len(sys.argv) >= 2:
+        if sys.argv[1] == "-grid":
+            findBestParams(X_train, Y_train, X_test, Y_test)
+        elif sys.argv[1] == "-corr":
+            correlationMatrix()
+        elif sys.argv[1] == "-nca":
+            Y_pred_pca = knn_NCA(X_train, Y_train, X_test, Y_test)
+            cf_knn_pca = confusion_matrix(Y_test, Y_pred_pca)
+            print("Confusion matrix for KNN with PCA:\n{}".format(cf_knn_pca))
+        elif sys.argv[1] == "-dim":
+            dim_reduc(X_train, Y_train, X_test, Y_test, 1)
+
+
+def correlationMatrix():
+    """
+    Create a correlation matrix using the methodology form here:
+    https://datatofish.com/correlation-matrix-pandas/
+    """
+    df = pd.read_csv("../data/creditcard.csv")
+    corrMatrix = df.corr()
+    res = corrMatrix.sort_values(by=['Class'], ascending=False)
+    print(res['Class'])
+    import seaborn as sn
+    import matplotlib.pyplot as plt
+    sn.heatmap(corrMatrix, annot=True)
+    plt.show()
 
 
 def findBestParams(X_train, Y_train, X_test, Y_test):

@@ -1,11 +1,15 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neighbors import KNeighborsClassifier, NeighborhoodComponentsAnalysis
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import GridSearchCV
+from sklearn.decomposition import PCA
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.pipeline import make_pipeline
+
 import sys
 
 """
@@ -13,22 +17,44 @@ Prototype implmentation of an KNN based solution with a 50/50 dataset
 """
 
 
-def runKNN(X_train, Y_train, X_test, Y_test) -> list:
+def runKNN(X_train, Y_train, X_test, Y_test, K=1) -> list:
     """
     Trains and tests a KNN algorithm on the supplied data and returns the predictions.
     """
     print(len(X_train), len(X_test))
 
     scaler = StandardScaler()
-    scaler.fit(X_train)
-    X_train = scaler.transform(X_train)
+    X_train = scaler.fit_transform(X_train)
     X_test = scaler.transform(X_test)
 
-    classifier = KNeighborsClassifier(n_neighbors=1)
+    classifier = KNeighborsClassifier(n_neighbors=K)
     classifier.fit(X_train, Y_train)
     Y_pred = classifier.predict(X_test)
 
     return Y_pred
+
+
+def knn_NCA(X_train, Y_train, X_test, Y_test, K=1) -> list:
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.transform(X_test)
+    nca = NeighborhoodComponentsAnalysis(2).fit(X_train, Y_train)
+    x_train_nca = nca.transform(X_train)
+    x_test_nca = nca.transform(X_test)
+
+    x_train_nca = pd.DataFrame(x_train_nca)
+    x_test_nca = pd.DataFrame(x_test_nca)
+
+    plt.scatter(x_train_nca[0], x_train_nca[1], c=Y_train, alpha=0.8)
+    plt.title('Scatter plot')
+    plt.xlabel('x')
+    plt.ylabel('y')
+    plt.show()
+
+    clf = KNeighborsClassifier(n_neighbors=K, weights="distance")
+    clf.fit(x_train_nca, Y_train)
+    y_pred = clf.predict(x_test_nca)
+    return y_pred
 
 
 def knnGridSearch(X_train, Y_train, X_test, Y_test) -> list:
@@ -40,14 +66,9 @@ def knnGridSearch(X_train, Y_train, X_test, Y_test) -> list:
         'weights': ['uniform', 'distance'],
         'metric': ['minkowski', 'manhattan'],
     }
-    reduced_params = {
-        'n_neighbors': [1],
-        'weights': ['uniform', 'distance'],
-        'metric': ['minkowski', 'manhattan'],
-    }
+
     scaler = StandardScaler()
-    scaler.fit(X_train)
-    X_train = scaler.transform(X_train)
+    X_train = scaler.fit_transform(X_train)
     X_test = scaler.transform(X_test)
 
     classifier = KNeighborsClassifier()
@@ -56,3 +77,50 @@ def knnGridSearch(X_train, Y_train, X_test, Y_test) -> list:
     print(res)
     pred = gs.predict(X_test)
     print(confusion_matrix(Y_test, pred))
+
+
+def dim_reduc(X_train, Y_train, X_test, Y_test, K=1) -> None:
+    X = pd.concat([X_train, X_test])
+    Y = Y_train + Y_test
+    print(X)
+    random_state = 0
+    # Reduce dimension to 2 with PCA
+    pca = make_pipeline(StandardScaler(),
+                        PCA(n_components=2, random_state=random_state))
+
+    # Reduce dimension to 2 with LinearDiscriminantAnalysis
+    lda = make_pipeline(StandardScaler(),
+                        LinearDiscriminantAnalysis())
+
+    # Reduce dimension to 2 with NeighborhoodComponentAnalysis
+    nca = make_pipeline(StandardScaler(),
+                        NeighborhoodComponentsAnalysis(n_components=2,
+                                                       random_state=random_state))
+
+    # Use a nearest neighbor classifier to evaluate the methods
+    knn = KNeighborsClassifier(n_neighbors=1)
+
+    # Make a list of the methods to be compared
+    dim_reduction_methods = [('PCA', pca), ('NCA', nca)]
+
+    # plt.figure()
+    for i, (name, model) in enumerate(dim_reduction_methods):
+        plt.figure()
+        # plt.subplot(1, 3, i + 1, aspect=1)
+
+        # Fit the method's model
+        model.fit(X_train, Y_train)
+
+        # Fit a nearest neighbor classifier on the embedded training set
+        knn.fit(model.transform(X_train), Y_train)
+
+        # Compute the nearest neighbor accuracy on the embedded test set
+        acc_knn = knn.score(model.transform(X_test), Y_test)
+        print(acc_knn)
+        # Embed the data set in 2 dimensions using the fitted model
+        X_embedded = model.transform(X)
+
+        # Plot the projected points and show the evaluation score
+        plt.scatter(X_embedded[:, 0], X_embedded[:, 1], c=Y, s=30, cmap='Set1')
+
+    plt.show()
