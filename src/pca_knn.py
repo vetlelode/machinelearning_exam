@@ -8,8 +8,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import classification_report, confusion_matrix
 
 
-
-x_train, y_train, x_test, y_test = get_dataset(400,400)
+x_train, y_train, x_test, y_test = get_dataset(400, 400)
 
 x_train = pd.DataFrame(StandardScaler().fit_transform(x_train))
 x_test = pd.DataFrame(StandardScaler().fit_transform(x_test))

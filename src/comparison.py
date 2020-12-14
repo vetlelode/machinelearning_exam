@@ -24,7 +24,7 @@ def runComp():
         elif sys.argv[1] == "-nca":
             Y_pred_pca = knn_NCA(X_train, Y_train, X_test, Y_test)
             cf_knn_pca = confusion_matrix(Y_test, Y_pred_pca)
-            print("Confusion matrix for KNN with PCA:\n{}".format(cf_knn_pca))
+            print("Confusion matrix for KNN with NCA:\n{}".format(cf_knn_pca))
         elif sys.argv[1] == "-dim":
             dim_reduc(X_train, Y_train, X_test, Y_test, 1)
 
