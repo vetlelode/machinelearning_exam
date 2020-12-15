@@ -43,21 +43,22 @@ def knn_NCA(X_train, Y_train, X_test, Y_test, K=1) -> list:
     X_test = scaler.transform(X_test)
     # Reduce the dimensionalty of the data using NCA
     nca = NeighborhoodComponentsAnalysis(2).fit(X_train, Y_train)
-    x_train_nca = nca.transform(X_train)
-    x_test_nca = nca.transform(X_test)
+    X_train_nca = nca.transform(X_train)
+    X_test_nca = nca.transform(X_test)
 
-    x_train_nca = pd.DataFrame(x_train_nca)
-    x_test_nca = pd.DataFrame(x_test_nca)
+    X_train_nca = pd.DataFrame(X_train_nca)
+    X_test_nca = pd.DataFrame(X_test_nca)
 
-    plt.scatter(x_train_nca[0], x_train_nca[1], c=Y_train, s=30, cmap='Set1')
+    plt.scatter(X_train_nca[0], X_train_nca[1], c=Y_train, s=30, cmap='Set1')
     plt.title('Scatter plot')
     plt.xlabel('x')
     plt.ylabel('y')
     plt.show()
 
     clf = KNeighborsClassifier(n_neighbors=K, weights="distance")
-    clf.fit(x_train_nca, Y_train)
-    return clf.predict(x_test_nca)
+    clf.fit(X_train_nca, Y_train)
+    print(type(X_train_nca), type(Y_train))
+    return clf.predict(X_test_nca)
 
 
 def dim_reduc(X_train, Y_train, X_test, Y_test, K=1) -> None:

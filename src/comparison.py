@@ -18,22 +18,18 @@ def runComp():
     Y_pred = runKNN(X_train, Y_train, X_test, Y_test)
     cf_knn = confusion_matrix(Y_test, Y_pred)
     print("Confusion matrix for KNN:\n{}".format(cf_knn))
-    print("False positive rate: {}%".format(
-        cf_knn[1][0]/len(Y_test)))
     if len(sys.argv) >= 2:
-        if sys.argv[1] == "-grid":
+        if "-grid" in sys.argv:
             findBestParams(X_train, Y_train, X_test, Y_test)
-        elif sys.argv[1] == "-corr":
+        elif "-corr" in sys.argv:
             # Print out a correlation matrix for the entire dataset, allowing some limited insight into the correlation of the attributes to the class
             correlationMatrix()
-        elif sys.argv[1] == "-nca":
+        elif "-nca" in sys.argv:
             # Run the KNN classifier, but with NCA dimensionalty reduction, which from our testing gives slightly better results than PCA
             Y_pred_nca = knn_NCA(X_train, Y_train, X_test, Y_test, 1)
             cf_knn_nca = confusion_matrix(Y_test, Y_pred_nca)
             print("Confusion matrix for KNN with NCA:\n{}".format(cf_knn_nca))
-            print("False positive rate: {}".format(
-                cf_knn_nca[1][0]/len(Y_test)))
-        elif sys.argv[1] == "-dim":
+        elif "-dim" in sys.argv:
             # Function comparing the results of PCA and NCA
             dim_reduc(X_train, Y_train, X_test, Y_test, 1)
 
@@ -42,6 +38,7 @@ def correlationMatrix():
     """
     Create a correlation matrix using the methodology form here:
     https://datatofish.com/correlation-matrix-pandas/
+    This isn't that useful, but is interesting for finding relevant correlations 
     """
     df = pd.read_csv("../data/creditcard.csv")
     corrMatrix = df.corr()
