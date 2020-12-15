@@ -17,7 +17,7 @@ Prototype implmentation of an KNN based solution with a 50/50 dataset
 """
 
 
-def runKNN(X_train, Y_train, X_test, Y_test, K=1) -> list:
+def runKNN(X_train, Y_train, X_test, K=1) -> list:
     """
     Trains and tests a KNN algorithm on the supplied data and returns the predictions.
     """
@@ -32,7 +32,7 @@ def runKNN(X_train, Y_train, X_test, Y_test, K=1) -> list:
     return classifier.predict(X_test)
 
 
-def knn_NCA(X_train, Y_train, X_test, Y_test, K=1) -> list:
+def knn_NCA(X_train, Y_train, X_test, K=1) -> list:
     """
     Reduce the dimensionalty of the dataset using the NCA method
     This is slower than using PCA or not using anything at all,
@@ -55,9 +55,8 @@ def knn_NCA(X_train, Y_train, X_test, Y_test, K=1) -> list:
     plt.ylabel('y')
     plt.show()
 
-    clf = KNeighborsClassifier(n_neighbors=K, weights="distance")
+    clf = KNeighborsClassifier(n_neighbors=K, weights="uniform", leaf_size=5)
     clf.fit(X_train_nca, Y_train)
-    print(type(X_train_nca), type(Y_train))
     return clf.predict(X_test_nca)
 
 
@@ -118,15 +117,20 @@ def knnGridSearch(X_train, Y_train, X_test, Y_test) -> list:
         'n_neighbors': [1, 3, 5],
         'weights': ['uniform', 'distance'],
         'metric': ['minkowski', 'manhattan'],
+        'leaf_size': [2, 3, 5, 10, 15, 30, 60, 90, 180],
     }
 
     scaler = StandardScaler()
     X_train = scaler.fit_transform(X_train)
     X_test = scaler.transform(X_test)
+    # Reduce the dimensionalty of the data using NCA
+    nca = NeighborhoodComponentsAnalysis(2).fit(X_train, Y_train)
+    X_train_nca = nca.transform(X_train)
+    X_test_nca = nca.transform(X_test)
 
     classifier = KNeighborsClassifier()
     gs = GridSearchCV(classifier, grid_params, verbose=1, cv=3, n_jobs=-1)
-    res = gs.fit(X_train, Y_train)
-    print(res)
-    pred = gs.predict(X_test)
-    print(confusion_matrix(Y_test, pred))
+    gs.fit(X_train_nca, Y_train)
+    print(gs.best_params_)
+    Y_pred = gs.predict(X_test_nca)
+    print(confusion_matrix(Y_test, Y_pred))

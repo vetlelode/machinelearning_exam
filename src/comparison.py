@@ -9,13 +9,16 @@ import matplotlib.pyplot as plt
 
 
 def runComp():
+    """
+    Run the KNN algorithm on the dataset with the provided flags
+    """
     X_train, Y_train, X_test, Y_test = get_dataset(5000, 200, 0.5)
     cols = ["Time", "V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "V10", "V11", "V12", "V13", "V14", "V15",
             "V16", "V17", "V18", "V19", "V20", "V21", "V22", "V23", "V24", "V25", "V26", "V27", "V28", "Amount"]
     X_train = pd.DataFrame(X_train, columns=cols)
     X_test = pd.DataFrame(X_test, columns=cols)
 
-    Y_pred = runKNN(X_train, Y_train, X_test, Y_test)
+    Y_pred = runKNN(X_train, Y_train, X_test, 1)
     cf_knn = confusion_matrix(Y_test, Y_pred)
     print("Confusion matrix for KNN:\n{}".format(cf_knn))
     if len(sys.argv) >= 2:
@@ -26,7 +29,7 @@ def runComp():
             correlationMatrix()
         elif "-nca" in sys.argv:
             # Run the KNN classifier, but with NCA dimensionalty reduction, which from our testing gives slightly better results than PCA
-            Y_pred_nca = knn_NCA(X_train, Y_train, X_test, Y_test, 1)
+            Y_pred_nca = knn_NCA(X_train, Y_train, X_test, 1)
             cf_knn_nca = confusion_matrix(Y_test, Y_pred_nca)
             print("Confusion matrix for KNN with NCA:\n{}".format(cf_knn_nca))
         elif "-dim" in sys.argv:
