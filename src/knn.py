@@ -55,7 +55,7 @@ def knn_NCA(X_train, Y_train, X_test, K=1) -> list:
     plt.ylabel('y')
     plt.show()
 
-    clf = KNeighborsClassifier(n_neighbors=K, weights="uniform", leaf_size=5)
+    clf = KNeighborsClassifier(n_neighbors=K, weights="uniform", leaf_size=2)
     clf.fit(X_train_nca, Y_train)
     return clf.predict(X_test_nca)
 
@@ -117,7 +117,7 @@ def knnGridSearch(X_train, Y_train, X_test, Y_test) -> list:
         'n_neighbors': [1, 3, 5],
         'weights': ['uniform', 'distance'],
         'metric': ['minkowski', 'manhattan'],
-        'leaf_size': [2, 3, 5, 10, 15, 30, 60, 90, 180],
+        'leaf_size': [2, 3, 5, 10, 15, 30],
     }
 
     scaler = StandardScaler()

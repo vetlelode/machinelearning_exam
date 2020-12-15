@@ -12,7 +12,7 @@ def runComp():
     """
     Run the KNN algorithm on the dataset with the provided flags
     """
-    X_train, Y_train, X_test, Y_test = get_dataset(5000, 200, 0.5)
+    X_train, Y_train, X_test, Y_test = get_dataset(10000, 450, 0.5)
     cols = ["Time", "V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "V10", "V11", "V12", "V13", "V14", "V15",
             "V16", "V17", "V18", "V19", "V20", "V21", "V22", "V23", "V24", "V25", "V26", "V27", "V28", "Amount"]
     X_train = pd.DataFrame(X_train, columns=cols)
