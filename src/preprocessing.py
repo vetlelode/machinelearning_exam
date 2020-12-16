@@ -1,6 +1,7 @@
 # preprocesses the data
 import re
 import random
+import numpy as np
 
 
 REAL_DATA_MAX_N: int = 284315
@@ -68,7 +69,7 @@ def get_dataset(k1: int, k2: int, f: float = 0.5):
         lines = [next(data_file) for _ in range(k2+1)]
         anomalous_data += process_lines(lines)
 
-    return split_training_data(real_data, anomalous_data, f)
+    return np.array(split_training_data(real_data, anomalous_data, f))
 
 
 def preprocess_files():

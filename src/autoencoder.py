@@ -1,73 +1,61 @@
 import pandas as pd
+import numpy as np
 from preprocessing import get_dataset
 from sklearn.neural_network import MLPRegressor
-from sklearn.neural_network import MLPClassifier
-from sklearn.metrics import confusion_matrix
-from sklearn.preprocessing import StandardScaler
-
-
-
-
-
-"""
-from sklearn.decomposition import PCA
-pca = PCA(2)
-x_pca = pca.fit_transform(X_train)
-x_pca = pd.DataFrame(x_pca)
-x_pca.columns=['PC1','PC2']
-
-# Plot
 import matplotlib.pyplot as plt
-plt.scatter(x_pca["PC1"], x_pca["PC2"], c=y_train, alpha=0.8)
-plt.title('Scatter plot')
-plt.xlabel('x')
-plt.ylabel('y')
-plt.show()
+from sklearn.decomposition import PCA
 
-clf = AutoEncoder()
-"""
+def plot_histogram(inliers, outliers):
+    bins = np.linspace(0, 100, 100)
+    plt.hist(inliers, bins, alpha=0.5, label='inliers')
+    plt.hist(outliers, bins, alpha=0.5, label='outliers')
+    plt.legend(loc='upper right')
+    plt.title('vector distance between input and output')
+    plt.show()
 
 
-def diffs(arrs1, arrs2):
-    diff_list = []
-    for arr1, arr2 in zip(arrs1, arrs2):
-        arr = []
-        for a, b in zip(arr1, arr2):
-            arr.append(a-b)
-        diff_list.append(arr)
-    return diff_list
+def plot_scatter(pca, Y):
+    X = pd.DataFrame(pca)
+    for i in X:
+        for j in X:
+            if i==j: continue
+            plt.scatter(X[i], X[j], c=Y, alpha=0.8)
+            plt.title('Relationships between principal components')
+            plt.xlabel('pc%s' % i)
+            plt.ylabel('pc%s' % j)
+            plt.show()
 
-def classify(train_X, train_Y, test_X, test_Y):
-    hidden_layers = [10,3,10]
-    autoencoder = MLPRegressor(solver="adam", activation="logistic", hidden_layer_sizes = hidden_layers, warm_start=True)
-    autoencoder.fit(train_X, train_X)
-    predictions = autoencoder.predict(test_X)
-    return(diffs(test_X,predictions), test_Y)
-    
+
+
+#Obtain the dataset
 train_X, train_Y, test_X, test_Y = get_dataset(10000,400,0)
 
-hidden_layers = [10,9,10]
-autoencoder = MLPRegressor(solver="adam", activation="relu", hidden_layer_sizes = hidden_layers, warm_start=True)
-autoencoder.fit(train_X, train_X)
+hidden_layers = [10,8,10]
+auto_encoder = MLPRegressor(
+    solver="adam",
+    activation="relu", #Relu works well for this
+    hidden_layer_sizes = hidden_layers,
+    warm_start=False #Used in debugging
+    )
+auto_encoder.fit(train_X, train_X)
 
-self_predict = autoencoder.predict(train_X)
-sdf = diffs(train_X, self_predict)
-predictions = autoencoder.predict(test_X)
-df = diffs(test_X, predictions)
-#df, Y = classify(*dataset)
+#take the difference between the input vector and the output vector of the auto encoder
+training_error = train_X - auto_encoder.predict( train_X )
+test_error     = test_X  - auto_encoder.predict( test_X  )
 
-from sklearn.decomposition import PCA
-pca = PCA(3).fit(sdf)
-#pd.DataFrame(StandardScaler().fit_transform(x_train))
 
-x_pca = pca.transform(df)
-x_pca = pd.DataFrame(x_pca)
-x_pca.columns=['PC1','PC2','PC3']
+#Perform principal component analysis with respect to the training_error
+n_of_pca = 6
+pca = PCA(n_of_pca).fit( training_error )
+#transform the test error to this space
+#this is done because the analysis is useless with few samples,
+#and we want to be able to reliably use the auto encoder to predict single instances
+test_pca = pca.transform( test_error )
 
-# Plot
-import matplotlib.pyplot as plt
-plt.scatter(x_pca["PC1"], x_pca["PC2"], c=test_Y, alpha=0.8)
-plt.title('Scatter plot')
-plt.xlabel('x')
-plt.ylabel('y')
-plt.show()
+#Take the absolute distance of the errors after pca
+distances = [ sum(row[:]**2)**0.5 for row in test_pca ]
+distances_inliers = [d for d,y in zip(distances,test_Y) if y == 0]
+distances_outliers = [d for d,y in zip(distances,test_Y) if y == 1]
+
+plot_histogram(distances_inliers, distances_outliers)
+plot_scatter(test_pca, test_Y)
