@@ -17,7 +17,7 @@ def process_lines(lines: list) -> list:
 
 def split_training_data(data: list, anomalous_data: list, f: float = 0.5) -> tuple:
     k = int((1-f) * len(anomalous_data))
-
+    
     test_rdata, training_rdata = sample_split(data, k)
     test_adata, training_adata = sample_split(anomalous_data, k)
     test_data = test_adata + test_rdata
@@ -37,14 +37,11 @@ def split_XY(data: list) -> tuple:
 
 def sample_split(data: list, k: int) -> tuple:
     tmp = list(data)
-    list_1, list_2 = [], []
-    n = len(data)
-    for i in range(min(len(data), k)):
-        index = random.randint(0, n-i-1)
-        list_1 += [tmp.pop(index)]
     random.shuffle(tmp)
-    list_2 += tmp
-    return list_1, list_2
+    n = min(len(data),k)
+    if n == 0: 
+        return [], tmp
+    return tmp[:n], tmp[n:]
 
 
 def get_dataset(k1: int, k2: int, f: float = 0.5):
