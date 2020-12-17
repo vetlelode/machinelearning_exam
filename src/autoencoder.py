@@ -6,84 +6,109 @@ import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.metrics import classification_report, confusion_matrix
 
+
 #Hyperparameters:
-hidden_layers = [10,5,10]
-n_of_pca = 5
-distance_threshold = 10
+hidden_layers = [20,10,10,20]
+components = 7
 score_threshold = -50
 
+class AutoEncoderErrorPCA:
+    def __init__(hidden_layers: list, components: int):
+        pass
 
-def plot_histogram(inliers, outliers, title):
-    lower_bound = min(min(inliers),min(outliers))
-    upper_bound = max(max(inliers),max(outliers))
+
+#Diagrams - Details unimportant
+def plot_histogram(X, Y, title) -> None:
+    X_inliers = [x for x,y in zip(X,Y) if y==0]
+    X_outliers = [x for x,y in zip(X,Y) if y==1]
+    lower_bound = min(X)
+    upper_bound = max(X)
     bins = np.linspace(lower_bound, upper_bound, 100)
-    plt.hist(inliers, bins, alpha=0.5, label='inliers')
-    plt.hist(outliers, bins, alpha=0.5, label='outliers')
+    plt.hist(x=(X_inliers, X_outliers), bins=bins, alpha=0.5, label=('inliers','outliers'), stacked=True, histtype="stepfilled")
     plt.legend(loc='upper right')
     plt.title(title)
     plt.show()
 
 
-def plot_scatter(pca, Y):
+#Diagrams - Details unimportant
+def plot_scatter(pca: list, Y) -> None:
     X = pd.DataFrame(pca)
     for i in X:
-        for j in X:
-            if i==j: continue
-            plt.scatter(X[i], X[j], c=Y, alpha=0.8)
-            plt.title('Relationships between principal components')
-            plt.xlabel('pc%s' % i)
-            plt.ylabel('pc%s' % j)
-            plt.show()
+        plot_histogram(X[i],Y,i)
 
-def predict_distance_threshold(distances):
-    return [1 if d > distance_threshold else 0 for d in distances]
 
 def predict_score_threshold(scores):
     return [1 if score < score_threshold else 0 for score in scores]
 
 
+#def run_autoencoder_outlier_detection(hidden_layers, components, score_threshold):
 #Obtain the dataset
-train_X, train_Y, test_X, test_Y = get_dataset(100000,400,0)
+train_X, train_Y, test_X, test_Y = get_dataset(f=0)
 
 
+# Train a neural net into accurately recreate the input data 
+# through a small latent space.
 auto_encoder = MLPRegressor(
     solver="adam",
     activation="relu", #Relu works well for this
     hidden_layer_sizes = hidden_layers,
-    warm_start=False #Used in debugging
+    warm_start=False, #Used in debugging
+    learning_rate="adaptive",
+    max_iter=100000,
+    tol=1e-6
     )
+# The autoencoder is only being trained on inliers as to not learn to
+# recreate outliers explicitly
 auto_encoder.fit(train_X, train_X)
 
-#take the difference between the input vector and the output vector of the auto encoder
+# Take the difference between the input vector and the output vector 
+# of the auto encoder
 training_error = train_X - auto_encoder.predict( train_X )
 test_error     = test_X  - auto_encoder.predict( test_X  )
+error_inliers = [x for x,y in zip(test_error,test_Y) if y==0]
+error_outliers = [x for x,y in zip(test_error,test_Y) if y==1]
 
 
-#Perform principal component analysis with respect to the training_error
+# Perform principal component analysis with respect to the training_error
+pca = PCA(components).fit( training_error )
 
-pca = PCA(n_of_pca).fit( training_error )
-#transform the test error to this space
-#this is done because the analysis is useless with few samples,
-#and we want to be able to reliably use the auto encoder to predict single instances
-test_pca = pca.transform( test_error )
-training_pca = pca.transform( training_error )
-
-#Take the absolute distance of the errors after pca
-distances = [ sum(row[:]**2)**0.5 for row in test_pca ]
-distances_inliers = [d for d,y in zip(distances,test_Y) if y == 0]
-distances_outliers = [d for d,y in zip(distances,test_Y) if y == 1]
-
+# Score the test errors based on the principal component analysis of the 
+# training error. This is the likelihood of the test sample being explained
+# by the elipsoid from the PCA
 scores = pca.score_samples(test_error)
-scores_inliers = [err for err, y in zip(scores, test_Y) if y==0]
-scores_outliers =[err for err, y in zip(scores, test_Y) if y==1]
+scores_inliers = [x for x,y in zip(scores,test_Y) if y==0]
+scores_outliers = [x for x,y in zip(scores,test_Y) if y==1]
 
-plot_histogram(distances_inliers, distances_outliers, 'vector length of distance between input and output')
+# In some earlier tests, we attempted to measure the length of the error
+# vectors to adequate results, but this assumes that the pca elipsoid is a 
+# perfect sphere. Some axes have higher variance and are therefore more 
+# important
 
-plot_histogram(scores_inliers, scores_outliers, 'PCA scores of distance between input and output')
-pred_Y_d = predict_distance_threshold(distances)
-pred_Y_s = predict_score_threshold(scores)
+
+# Predict whether the samples are inliers or outliers based off a threshold
+# If a sample has a score less than the threshold, it is unlikely to be
+# explained by the PCA elipsoid
+predicted_Y = predict_score_threshold(scores)
+
+
+plot_histogram(scores, test_Y, 'PCA scores of the autoencoder error')
+#plot_scatter(pca.transform(test_X), test_Y)
+
 #plot_scatter(test_pca, test_Y)
 #plot_scatter(training_pca, train_Y)
-print(confusion_matrix(test_Y, pred_Y_d))
+print(confusion_matrix(test_Y, predicted_Y))
+print(classification_report(test_Y, predicted_Y))
+training_scores = pca.score_samples(training_error)
+print("minimum training score:%s"%min(training_scores))
+print("max outlier score: %s"%max([a for a,y in zip(scores,test_Y) if y==1]))
+print("min inlier score: %s"%min([a for a,y in zip(scores,test_Y) if y==0]))
+print("avg training score: %s"%pca.score(training_error))
+print("avg inlier score: %s"%pca.score(error_inliers))
+print("avg outlier score: %s"%pca.score(error_outliers))
+print("std training: %s"% np.std(training_scores))
+print("std inliers: %s"% np.std(scores_inliers))
+print("std outliers: %s"% np.std(scores_outliers))
 
-print(confusion_matrix(test_Y, pred_Y_s))
+
+plt.matshow(pd.DataFrame(pca.transform(test_error)).corr())
+plt.show()

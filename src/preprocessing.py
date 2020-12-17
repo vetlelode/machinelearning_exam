@@ -45,7 +45,7 @@ def sample_split(data: list, k: int) -> tuple:
     return tmp[:n], tmp[n:]
 
 
-def get_dataset(k1: int, k2: int, f: float = 0.5):
+def get_dataset(k1: int = 284315, k2: int = 492, f: float = 0.5):
     """
     Fetches the dataset and splits into training data and test data
     :param k1: the amount of entries to read from the real data
@@ -62,12 +62,14 @@ def get_dataset(k1: int, k2: int, f: float = 0.5):
     k2 = min(k2, FAKE_DATA_MAX_N)
     anomalous_data, real_data = [], []
     with open("../data/real.csv", "r") as data_file:
-        lines = [next(data_file) for _ in range(k1+1)]
-        real_data += process_lines(lines)
+        lines = data_file.readlines()[1:]
+        random.shuffle(lines)
+        real_data = process_lines(lines[:k1])
 
     with open("../data/fake.csv", "r") as data_file:
-        lines = [next(data_file) for _ in range(k2+1)]
-        anomalous_data += process_lines(lines)
+        lines = data_file.readlines()[1:]
+        random.shuffle(lines)
+        anomalous_data = process_lines(lines[:k2])
 
     return np.array(split_training_data(real_data, anomalous_data, f))
 
