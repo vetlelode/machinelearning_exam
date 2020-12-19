@@ -17,7 +17,8 @@ def runComp():
             "V16", "V17", "V18", "V19", "V20", "V21", "V22", "V23", "V24", "V25", "V26", "V27", "V28", "Amount"]
     X_train = pd.DataFrame(X_train, columns=cols)
     X_test = pd.DataFrame(X_test, columns=cols)
-
+    X_train.drop(columns="Time")
+    X_test.drop(columns="Time")
     Y_pred = runKNN(X_train, Y_train, X_test, 1)
     cf_knn = confusion_matrix(Y_test, Y_pred)
     print("Confusion matrix for KNN:\n{}".format(cf_knn))
