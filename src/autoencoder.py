@@ -15,6 +15,7 @@ from sklearn.pipeline import Pipeline
 hidden_layers = [20,10,2,10,20]
 components = 28
 score_threshold = -50
+activation = "relu"
 
 class AutoEncoderErrorPCA:
     def __init__(
@@ -89,6 +90,20 @@ def plot_scatter(X,Y,title,threshold=None) -> None:
 def threshold_predict(scores,threshold):
     return [1 if score < threshold else 0 for score in scores]
 
+#https://i-systems.github.io/teaching/ML/iNotes/15_Autoencoder.html
+def encode(reg, X, layers:int, activation="relu"):
+    data = np.asmatrix(X)
+    coefficients = reg.coefs_
+    intercepts = reg.intercepts_
+    activations = {
+            "tanh": lambda a: (np.exp(a) - np.exp(-a))/(np.exp(a) + np.exp(-a)),
+            "relu": np.vectorize(lambda a: a if a>0 else 0)
+            }
+    activation_function = activations[activation]
+    layer = activation_function(data*coefficients[0] + intercepts[0])
+    for i in range(1,layers):
+        layer = activation_function(layer*coefficients[i] + intercepts[i])
+    return layer
 
 # Obtain the dataset
 train_X, train_Y, test_X, test_Y = get_dataset(k1=80000,f=0)
@@ -110,7 +125,7 @@ test_X = scaler.transform(test_X)
 # through a small latent space.
 auto_encoder = MLPRegressor(
     solver="adam",
-    activation="tanh", #Relu also works well, but easily leads to dead neurons
+    activation=activation, #Relu also works well, but easily leads to dead neurons
     hidden_layer_sizes = hidden_layers,
     warm_start=False, #Used in debugging
     max_iter=50,
@@ -122,6 +137,20 @@ auto_encoder = MLPRegressor(
 # The autoencoder is only being trained on inliers as to not learn to
 # recreate outliers explicitly
 auto_encoder.fit(train_X, train_X)
+
+
+# Plot out the latent space
+latent = np.asarray(encode(auto_encoder, test_X, 3, "relu"))
+latent_inliers = np.asmatrix([x for x,y in zip(latent,test_Y) if y==0])
+latent_outliers = np.asmatrix([x for x,y in zip(latent,test_Y) if y==1])
+plt.figure(figsize = (10,10))
+plt.scatter(np.asarray(latent_inliers[:,0]),np.asarray(latent_inliers[:,1]), label = '0', alpha=0.3)
+plt.scatter(np.asarray(latent_outliers[:,0]),np.asarray(latent_outliers[:,1]), label = '1', alpha=0.3)
+plt.title('Latent Space', fontsize=15)
+plt.xlabel('Z1', fontsize=10)
+plt.ylabel('Z2', fontsize=10)
+plt.axis('equal')
+plt.show()
 
 # Recreate the data from the auto encoder
 train_recreations = auto_encoder.predict( train_X )
@@ -195,6 +224,9 @@ plot_scatter(
         'ln(abs(PCA scores))', 
         np.log(np.abs(pca_threshold))
         )
+
+
+
 
 print("r2 report:")
 print(confusion_matrix(test_Y, r2_predictions))
