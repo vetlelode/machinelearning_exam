@@ -68,7 +68,7 @@ def dim_reduc(X_train, Y_train, X_test, Y_test, K=1) -> None:
     https://scikit-learn.org/stable/auto_examples/neighbors/plot_nca_dim_reduction.html
     Only runs if the -dim argument is provided
     """
-    X = pd.concat([X_train, X_test])Example taken from
+    X = pd.concat([X_train, X_test])
     Y = Y_train + Y_test
     random_state = 0
     # Reduce dimension to 2 with PCA
