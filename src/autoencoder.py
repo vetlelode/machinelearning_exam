@@ -51,7 +51,7 @@ class AutoEncoderErrorPCA:
 
 
 #Diagrams - Details unimportant
-def plot_histogram(X, Y, title) -> None:
+def plot_histogram(X, Y, title, threshold=None) -> None:
     #Omit extreme outliers
     std = np.std(X)
     mean = np.mean(X)
@@ -60,9 +60,14 @@ def plot_histogram(X, Y, title) -> None:
     X_inliers = [x for x,y in zip(X,Y) if y==0 ]
     X_outliers = [x for x,y in zip(X,Y) if y==1 ]
     
-    bins = np.linspace(lower_bound, upper_bound, 100)
-    plt.hist(x=(X_inliers, X_outliers), bins=bins, alpha=0.5, label=('inliers','outliers'), stacked=True, histtype="stepfilled")
-    plt.legend(loc='upper left')
+    bins = np.linspace(lower_bound, upper_bound, 150)
+    
+    fig, ax = plt.subplots()
+    ax.hist(x=(X_inliers, X_outliers), bins=bins, alpha=0.5, label=('inliers','outliers'), stacked=False, histtype="stepfilled", density=True)
+    ax.legend(loc='upper left')
+    if threshold != None:
+        min_ylim, max_ylim = plt.ylim()
+        ax.vlines(threshold,min_ylim,max_ylim)
     plt.title(title)
     plt.show()
 
@@ -74,7 +79,8 @@ def plot_scatter(X,Y,title,threshold=None) -> None:
     handles, labels = scatter.legend_elements()
     ax.legend(handles, ["inliers", "outliers"], loc='lower left')
     if threshold != None:
-        ax.plot([0,len(X)],[threshold,threshold], linewidth=2)
+        min_xlim, max_xlim = plt.xlim()
+        ax.hlines(threshold,min_xlim,max_xlim)
     plt.title(title)
     plt.show()
 
@@ -135,7 +141,7 @@ r2_predictions = threshold_predict(test_r2_scores, r2_threshold)
 
 
 # Plot the r2 scores
-plot_histogram(test_r2_scores, test_Y, 'R2 scores')
+plot_histogram(test_r2_scores, test_Y, 'R2 scores',r2_threshold)
 plot_scatter(
         test_r2_scores, 
         test_Y, 
@@ -166,7 +172,8 @@ pca = PCA(components).fit( training_errors )
 
 # Find a decent threshold
 training_pca_scores = pca.score_samples( training_errors )
-pca_threshold = np.mean(training_pca_scores)-np.std(training_pca_scores)
+#We found that 0.3 std was a good threshold
+pca_threshold = np.mean(training_pca_scores)-0.3*np.std(training_pca_scores)
 
 # Predict whether the samples are inliers or outliers based off the threshold
 # If a sample has a score less than the threshold, it is unlikely to be
@@ -176,7 +183,12 @@ pca_predictions = threshold_predict( test_pca_scores, pca_threshold )
 
 
 # Plot the PCA scores
-plot_histogram(test_pca_scores, test_Y, 'PCA scores')
+plot_histogram(
+        np.log(np.abs(test_pca_scores)),
+        test_Y, 
+        'ln(abs(PCA scores))',
+        np.log(np.abs(pca_threshold))
+        )
 plot_scatter(
         np.log(np.abs(test_pca_scores)), 
         test_Y, 
