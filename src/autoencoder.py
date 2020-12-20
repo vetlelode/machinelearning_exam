@@ -52,115 +52,160 @@ class AutoEncoderErrorPCA:
 
 #Diagrams - Details unimportant
 def plot_histogram(X, Y, title) -> None:
-    s = sorted(X)
-    lower_bound, upper_bound = s[40], s[-40]
+    #Omit extreme outliers
+    std = np.std(X)
+    mean = np.mean(X)
+    lower_bound, upper_bound = max(min(X), mean-2*std), min(max(X),mean+2*std)
     
     X_inliers = [x for x,y in zip(X,Y) if y==0 ]
     X_outliers = [x for x,y in zip(X,Y) if y==1 ]
     
     bins = np.linspace(lower_bound, upper_bound, 100)
     plt.hist(x=(X_inliers, X_outliers), bins=bins, alpha=0.5, label=('inliers','outliers'), stacked=True, histtype="stepfilled")
-    plt.legend(loc='upper right')
+    plt.legend(loc='upper left')
     plt.title(title)
     plt.show()
 
 
 #Diagrams - Details unimportant
-def plot_scatter(pca: list, Y) -> None:
-    X = pd.DataFrame(pca)
-    for i in X:
-        plot_histogram(X[i],Y,i)
+def plot_scatter(X,Y,title,threshold=None) -> None:
+    fig, ax = plt.subplots()
+    scatter = ax.scatter(range(len(X)),X,c=Y, alpha=0.3)
+    handles, labels = scatter.legend_elements()
+    ax.legend(handles, ["inliers", "outliers"], loc='lower left')
+    if threshold != None:
+        ax.plot([0,len(X)],[threshold,threshold], linewidth=2)
+    plt.title(title)
+    plt.show()
 
 
-def predict_score_threshold(scores,threshold):
+
+def threshold_predict(scores,threshold):
     return [1 if score < threshold else 0 for score in scores]
 
 
-def r2_score_samples(autoencoder, X):
-    return [r2_score(y_true, y_pred) for y_true, y_pred in zip(outliers, auto_encoder.predict(outliers))]
-
-
-
-#def run_autoencoder_outlier_detection(hidden_layers, components, score_threshold):
-#Obtain the dataset
+# Obtain the dataset
 train_X, train_Y, test_X, test_Y = get_dataset(k1=80000,f=0)
 
-pipeline = Pipeline([('normalizer', Normalizer()),
-                     ('scaler', StandardScaler())])
-scaler = StandardScaler()
-pipeline = scaler.fit(train_X)
+# Scale data to make training easier
+# -
+# We tried to normalize and scale, but that made it *too*
+# easy to train, and we got extreme overfitting and the model
+# would fit new inliers and outliers equaly poorly.
+# A way to avoid overfitting would be to introduce noise to the training data
+# per epoch, but sklearn does not support this.
+# Standardscaler works fairly well on its own.
+scaler = StandardScaler().fit(train_X)
 train_X = scaler.transform(train_X)
 test_X = scaler.transform(test_X)
+
+
 # Train a neural net into accurately recreate the input data 
 # through a small latent space.
 auto_encoder = MLPRegressor(
     solver="adam",
-    activation="tanh", #Relu works well for this
+    activation="tanh", #Relu also works well, but easily leads to dead neurons
     hidden_layer_sizes = hidden_layers,
     warm_start=False, #Used in debugging
-    #learning_rate="adaptive",
     max_iter=50,
     verbose=True,
     tol=1e-7
     )
+
+
 # The autoencoder is only being trained on inliers as to not learn to
 # recreate outliers explicitly
 auto_encoder.fit(train_X, train_X)
 
-# Take the difference between the input vector and the output vector 
-# of the auto encoder
-training_error = train_X - auto_encoder.predict( train_X )
+# Recreate the data from the auto encoder
+train_recreations = auto_encoder.predict( train_X )
+test_recreations  = auto_encoder.predict( test_X  )
 
-inliers = [x for x,y in zip(test_X,test_Y) if y==0]
-outliers = [x for x,y in zip(test_X,test_Y) if y==1]
-recreations = auto_encoder.predict( test_X )
-test_error     = test_X - recreations
-error_inliers = [x for x,y in zip(test_error,test_Y) if y==0]
-error_outliers = [x for x,y in zip(test_error,test_Y) if y==1]
+# Score the samples with r2. This is the loss function used in the autoencoder.
+# This is done because sklearn auto encoder does not support per sample scoring
+train_r2_scores = [r2_score( x_true, x_pred ) for x_true, x_pred in zip(train_X, train_recreations)]
+test_r2_scores  = [r2_score( x_true, x_pred ) for x_true, x_pred in zip(test_X, test_recreations)]
 
+# Find a decent threshold to split inliers and outliers
+# Use the 68% rule (1 standard deviation)
+r2_threshold = np.mean(train_r2_scores) - np.std(train_r2_scores)
 
-# Perform principal component analysis with respect to the training_error
-pca = PCA(components).fit( training_error )
-
-# Score the test errors based on the principal component analysis of the 
-# training error. This is the likelihood of the test sample being explained
-# by the elipsoid from the PCA
-scores = pca.score_samples(test_error)
-scores_inliers = [x for x,y in zip(scores,test_Y) if y==0]
-scores_outliers = [x for x,y in zip(scores,test_Y) if y==1]
-
-# In some earlier tests, we attempted to measure the length of the error
-# vectors to adequate results, but this assumes that the pca elipsoid is a 
-# perfect sphere. Some axes have higher variance and are therefore more 
-# important
+# Predict the test data wrt the r2 threshold
+r2_predictions = threshold_predict(test_r2_scores, r2_threshold)
 
 
-# Predict whether the samples are inliers or outliers based off a threshold
+# Plot the r2 scores
+plot_histogram(test_r2_scores, test_Y, 'R2 scores')
+plot_scatter(
+        test_r2_scores, 
+        test_Y, 
+        'R2 scores',
+        r2_threshold
+        )
+
+
+# Another method is to take a principal component analysis of the data
+# This takes into account that some axes are more important than others.
+# As the autoencoder scores are subject to the curse of dimensionality
+
+# Take the error between the original data and its recreation
+training_errors = train_X - train_recreations
+test_errors     = test_X  - test_recreations
+
+# Fit the pca to the training errors.
+# We have tried a number of different amount of components
+# but considering the axes are picked based off of the variance of the training 
+# data, omiting the lower variance axes might also omit the characteristic axes
+# of the outliers. We include all axes of the PCA.
+# This is only to transform the errors to an ellipsoid space
+# where if the datapoints are within the ellipsoid, the point is most likely
+# an inlier.
+# Points outside the elipsoid on a minor axis will have a major impact on its
+# likelyhood of being an outlier
+pca = PCA(components).fit( training_errors )
+
+# Find a decent threshold
+training_pca_scores = pca.score_samples( training_errors )
+pca_threshold = np.mean(training_pca_scores)-np.std(training_pca_scores)
+
+# Predict whether the samples are inliers or outliers based off the threshold
 # If a sample has a score less than the threshold, it is unlikely to be
 # explained by the PCA elipsoid
-predicted_Y = predict_score_threshold(scores,score_threshold)
+test_pca_scores = pca.score_samples( test_errors )
+pca_predictions = threshold_predict( test_pca_scores, pca_threshold )
 
 
-plot_histogram(scores, test_Y, 'PCA scores of the autoencoder error')
-plot_histogram(r2_score_samples(auto_encoder, test_X), test_Y, 'r2 scores')
-#plot_scatter(pca.transform(test_X), test_Y)
+# Plot the PCA scores
+plot_histogram(test_pca_scores, test_Y, 'PCA scores')
+plot_scatter(
+        np.log(np.abs(test_pca_scores)), 
+        test_Y, 
+        'ln(abs(PCA scores))', 
+        np.log(np.abs(pca_threshold))
+        )
 
-#plot_scatter(test_pca, test_Y)
-#plot_scatter(training_pca, train_Y)
-print(confusion_matrix(test_Y, predicted_Y))
-print(classification_report(test_Y, predicted_Y))
-training_scores = pca.score_samples(training_error)
-print("minimum training score:%s"%min(training_scores))
-print("max outlier score: %s"%max([a for a,y in zip(scores,test_Y) if y==1]))
-print("min inlier score: %s"%min([a for a,y in zip(scores,test_Y) if y==0]))
-print("avg training score: %s"%pca.score(training_error))
-print("avg inlier score: %s"%pca.score(error_inliers))
-print("avg outlier score: %s"%pca.score(error_outliers))
-print("std training: %s"% np.std(training_scores))
-print("std inliers: %s"% np.std(scores_inliers))
-print("std outliers: %s"% np.std(scores_outliers))
+print("r2 report:")
+print(confusion_matrix(test_Y, r2_predictions))
+print(classification_report(test_Y, r2_predictions))
+
+print("PCA report:")
+print(confusion_matrix(test_Y, pca_predictions))
+print(classification_report(test_Y, pca_predictions))
+
+print("PCA outperforms R2")
 
 
-plt.matshow(pd.DataFrame(pca.transform(test_error)).corr())
+inlier_errors = [x for x,y in zip(test_errors,test_Y) if y==0]
+outlier_errors = [x for x,y in zip(test_errors,test_Y) if y==1]
+
+plt.matshow(pd.DataFrame(inlier_errors).corr())
+plt.title("Correlation matrix: inlier errors")
 plt.show()
 
+plt.matshow(pd.DataFrame(outlier_errors).corr())
+plt.title("Correlation matrix: outlier errors")
+plt.show()
+
+plt.matshow(pd.DataFrame(training_errors).corr())
+plt.title("Correlation matrix: training errors")
+plt.show()
