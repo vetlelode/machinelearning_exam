@@ -13,7 +13,7 @@ def process_line(text: str) -> str:
 
 
 def process_lines(lines: list) -> list:
-    return [[float(f) for f in process_line(line).split(",")] for line in lines[1:]]
+    return [[float(f) for f in process_line(line).split(",")] for line in lines]
 
 
 def split_training_data(data: list, anomalous_data: list, f: float = 0.5) -> tuple:
@@ -63,13 +63,12 @@ def get_dataset(k1: int = 284315, k2: int = 492, f: float = 0.5):
     anomalous_data, real_data = [], []
     with open("../data/real.csv", "r") as data_file:
         lines = data_file.readlines()[1:]
-        random.shuffle(lines)
-        real_data = process_lines(lines[:k1])
+        real_data = process_lines(random.sample(lines, k1))
 
     with open("../data/fake.csv", "r") as data_file:
         lines = data_file.readlines()[1:]
         random.shuffle(lines)
-        anomalous_data = process_lines(lines[:k2])
+        anomalous_data = process_lines(random.sample(lines, k2))
 
     return np.array(split_training_data(real_data, anomalous_data, f))
 
