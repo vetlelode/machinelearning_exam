@@ -14,8 +14,7 @@ from sklearn.pipeline import Pipeline
 #Hyperparameters:
 hidden_layers = [20,10,2,10,20]
 components = 28
-score_threshold = -50
-activation = "relu"
+activation = "tanh"
 
 class AutoEncoderErrorPCA:
     def __init__(
@@ -105,6 +104,33 @@ def encode(reg, X, layers:int, activation="relu"):
         layer = activation_function(layer*coefficients[i] + intercepts[i])
     return layer
 
+
+def log_likelihood(X,Y):
+    # The PDF of the normal distribution is
+    # e^(-(x - μ)^2/(2 σ^2))/(sqrt(2 π) σ)
+    # Which is isomorphic to
+    # (x - μ)^2 / (σ^2)
+    # the exact probabilities are not important to the scoring,
+    # only that two scores in one distribution have the same
+    # relationship as in the other (f(a)<f(b) <=> g(a)<g(b))
+    
+    # We can then sum the log-likelihood of each axis
+    # as that is isomorphic to taking the product of the likelihood
+    X = np.asmatrix(X)
+    Y = np.asmatrix(Y)
+    n_axes = X.shape[1]
+    # log likelihood parameters
+    # the mean of each axis
+    μs = [np.mean(X[:,i]) for i in range(n_axes)]
+    # the standard deviation of each axis
+    σ2s = [np.var(X[:,i]) for i in range(n_axes)]
+    
+    log_likelihoods = []
+    for y in Y:
+        ll = sum([(y[0,i]-μs[i]) / σ2s[i] for i in range(n_axes)])
+        log_likelihoods.append( ll )
+    return log_likelihoods
+
 # Obtain the dataset
 train_X, train_Y, test_X, test_Y = get_dataset(k1=80000,f=0)
 
@@ -179,13 +205,38 @@ plot_scatter(
         )
 
 
-# Another method is to take a principal component analysis of the data
-# This takes into account that some axes are more important than others.
-# As the autoencoder scores are subject to the curse of dimensionality
+# R2 scoring does not take into account that the different axes
+# might have different variances. Since the model is trained
+# only on inliers, it might happen that the distinguishing
+# axes of the outliers have low variance, and therefore R2 will
+# not pick up on that.
 
 # Take the error between the original data and its recreation
 training_errors = train_X - train_recreations
 test_errors     = test_X  - test_recreations
+
+train_ll_scores = log_likelihood(training_errors,training_errors)
+test_ll_scores = log_likelihood(training_errors,test_errors)
+
+ll_threshold = np.mean(train_ll_scores)-np.std(train_ll_scores)
+
+ll_predictions = threshold_predict(test_ll_scores, ll_threshold)
+
+
+# Plot the ll scores
+plot_histogram(test_ll_scores, test_Y, 'log likelihood scores', ll_threshold)
+plot_scatter(
+        test_ll_scores, 
+        test_Y, 
+        'log likelihood scores',
+        ll_threshold
+        )
+
+
+# Another method is to take a principal component analysis of the data
+# This takes into account that some axes are more important than others.
+# As the autoencoder scores are subject to the curse of dimensionality
+
 
 # Fit the pca to the training errors.
 # We have tried a number of different amount of components
@@ -231,6 +282,10 @@ plot_scatter(
 print("r2 report:")
 print(confusion_matrix(test_Y, r2_predictions))
 print(classification_report(test_Y, r2_predictions))
+
+print("LL report:")
+print(confusion_matrix(test_Y, ll_predictions))
+print(classification_report(test_Y, ll_predictions))
 
 print("PCA report:")
 print(confusion_matrix(test_Y, pca_predictions))
