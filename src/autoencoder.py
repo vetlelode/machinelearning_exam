@@ -9,12 +9,15 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import Normalizer, MinMaxScaler
 from sklearn.pipeline import Pipeline
 
+from scipy.stats import invgamma
+
 
 
 #Hyperparameters:
 hidden_layers = [20,10,2,10,20]
 components = 28
 activation = "tanh"
+threshold = 0.9
 
 class AutoEncoderErrorPCA:
     def __init__(
@@ -105,32 +108,34 @@ def encode(reg, X, layers:int, activation=activation):
     return layer
 
 
-def log_likelihood(X,Y):
-    # The PDF of the normal distribution is
-    # e^(-(x - μ)^2/(2 σ^2))/(sqrt(2 π) σ)
-    # Which is isomorphic to
-    # -(x - μ)^2 / (σ^2)
-    # the exact probabilities are not important to the scoring,
-    # only that two scores in one distribution have the same
-    # relationship as in the other (f(a)<f(b) <=> g(a)<g(b))
+class LogLikelihood:
+    def __init__(self, X):
+        X = np.asmatrix(X)
+        self.n_axes = X.shape[1]
+        # log likelihood parameters
+        # the mean of each axis
+        self.μs = [np.mean(X[:,i]) for i in range(self.n_axes)]
+        # the standard deviation of each axis
+        self.σ2s = [np.var(X[:,i]) for i in range(self.n_axes)]
     
-    # We can then sum the log-likelihood of each axis
-    # as that is isomorphic to taking the product of the likelihood
-    X = np.asmatrix(X)
-    Y = np.asmatrix(Y)
-    n_axes = X.shape[1]
-    # log likelihood parameters
-    # the mean of each axis
-    μs = [np.mean(X[:,i]) for i in range(n_axes)]
-    # the standard deviation of each axis
-    σ2s = [np.var(X[:,i]) for i in range(n_axes)]
-    
-    log_likelihoods = []
-    for y in Y:
-        ll = sum([-(y[0,i]-μs[i])**2 / σ2s[i] for i in range(n_axes)])
-        log_likelihoods.append( ll )
-    return log_likelihoods
-
+    def score(self, Y):
+        Y = np.asmatrix(Y)
+        # The PDF of the normal distribution is
+        # e^(-(x - μ)^2/(2 σ^2))/(sqrt(2 π) σ)
+        # Which is isomorphic to
+        # -(x - μ)^2 / (σ^2)
+        # the exact probabilities are not important to the scoring,
+        # only that two scores in one distribution have the same
+        # relationship as in the other (f(a)<f(b) <=> g(a)<g(b))
+        
+        # We can then sum the log-likelihood of each axis
+        # as that is isomorphic to taking the product of the likelihood
+        
+        log_likelihoods = []
+        for y in Y:
+            ll = sum([(y[0,i]-self.μs[i])**2 / self.σ2s[i] for i in range(self.n_axes)])
+            log_likelihoods.append( ll )
+        return log_likelihoods
 
 def predict(scoring_function, x_train, x_test, std_factor=1):
     # Score the training data. These should have a low mean score
@@ -152,7 +157,7 @@ def plot_scores(scores, Y, title, threshold=None):
 
 
 # Obtain the dataset
-train_X, train_Y, test_X, test_Y = get_dataset(k1=1000,f=0)
+train_X, train_Y, test_X, test_Y = get_dataset(f=0)
 
 # Scale data to make training easier
 # -
@@ -230,13 +235,33 @@ plot_scores(test_r2_scores, test_Y, 'R2 scores',r2_threshold)
 training_errors = train_X - train_recreations
 test_errors     = test_X  - test_recreations
 
+LL = LogLikelihood(training_errors)
 
-test_ll_scores, ll_predictions, ll_thresh = predict( 
-        lambda a: log_likelihood(training_errors,a), 
-        training_errors, 
-        test_errors, 
-        0.3
-        )
+# Score the training data. These should have a low mean score
+training_ll_scores = LL.score(training_errors)
+test_ll_scores     = LL.score(test_errors)
+
+a, loc, scale = invgamma.fit(training_ll_scores)
+ll_thresh = invgamma.isf(1-threshold, a, loc, scale)
+
+
+bins = np.linspace(0, 200, 150)
+fig, ax = plt.subplots()
+ax.hist(training_ll_scores, bins)
+min_ylim, max_ylim = plt.ylim()
+ax.plot(bins, np.multiply(invgamma.pdf(bins, a, loc, scale),max_ylim*20))
+
+plt.title("log likelihood training scores")
+plt.show()
+
+# The log likelihood is the sum of logs, which the expected error follows
+# the gamma distribution, where the expected error is digamma(k)+ln(theta)
+# or digamma(alpha) - ln(beta)
+
+#variance/mean = theta
+#mean^2 /variance=kk
+
+ll_predictions = [1 if x > ll_thresh else 0 for x in test_ll_scores]
 
 
 # Plot the ll scores
