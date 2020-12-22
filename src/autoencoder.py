@@ -90,7 +90,7 @@ def threshold_predict(scores,threshold):
     return [1 if score < threshold else 0 for score in scores]
 
 #https://i-systems.github.io/teaching/ML/iNotes/15_Autoencoder.html
-def encode(reg, X, layers:int, activation="relu"):
+def encode(reg, X, layers:int, activation=activation):
     data = np.asmatrix(X)
     coefficients = reg.coefs_
     intercepts = reg.intercepts_
@@ -109,7 +109,7 @@ def log_likelihood(X,Y):
     # The PDF of the normal distribution is
     # e^(-(x - μ)^2/(2 σ^2))/(sqrt(2 π) σ)
     # Which is isomorphic to
-    # (x - μ)^2 / (σ^2)
+    # -(x - μ)^2 / (σ^2)
     # the exact probabilities are not important to the scoring,
     # only that two scores in one distribution have the same
     # relationship as in the other (f(a)<f(b) <=> g(a)<g(b))
@@ -127,12 +127,32 @@ def log_likelihood(X,Y):
     
     log_likelihoods = []
     for y in Y:
-        ll = sum([(y[0,i]-μs[i]) / σ2s[i] for i in range(n_axes)])
+        ll = sum([-(y[0,i]-μs[i])**2 / σ2s[i] for i in range(n_axes)])
         log_likelihoods.append( ll )
     return log_likelihoods
 
+
+def predict(scoring_function, x_train, x_test, std_factor=1):
+    # Score the training data. These should have a low mean score
+    training_scores = scoring_function( x_train )
+    # Set the threshold to be std_factor standard deviations below the mean
+    # score of the training data
+    threshold = np.mean(training_scores)-std_factor*np.std(training_scores)
+    
+    # Score the test data...
+    test_scores = scoring_function( x_test )
+    # Predict test class based off of whether their score is below the 
+    # threshold
+    return test_scores, threshold_predict( test_scores, threshold ), threshold
+
+
+def plot_scores(scores, Y, title, threshold=None):
+    plot_histogram( scores, Y, title, threshold)
+    plot_scatter  ( scores, Y, title, threshold)
+
+
 # Obtain the dataset
-train_X, train_Y, test_X, test_Y = get_dataset(k1=80000,f=0)
+train_X, train_Y, test_X, test_Y = get_dataset(k1=1000,f=0)
 
 # Scale data to make training easier
 # -
@@ -166,7 +186,7 @@ auto_encoder.fit(train_X, train_X)
 
 
 # Plot out the latent space
-latent = np.asarray(encode(auto_encoder, test_X, 3, "relu"))
+latent = np.asarray(encode(auto_encoder, test_X, 3, activation))
 latent_inliers = np.asmatrix([x for x,y in zip(latent,test_Y) if y==0])
 latent_outliers = np.asmatrix([x for x,y in zip(latent,test_Y) if y==1])
 plt.figure(figsize = (10,10))
@@ -187,6 +207,7 @@ test_recreations  = auto_encoder.predict( test_X  )
 train_r2_scores = [r2_score( x_true, x_pred ) for x_true, x_pred in zip(train_X, train_recreations)]
 test_r2_scores  = [r2_score( x_true, x_pred ) for x_true, x_pred in zip(test_X, test_recreations)]
 
+
 # Find a decent threshold to split inliers and outliers
 # Use the 68% rule (1 standard deviation)
 r2_threshold = np.mean(train_r2_scores) - np.std(train_r2_scores)
@@ -196,13 +217,7 @@ r2_predictions = threshold_predict(test_r2_scores, r2_threshold)
 
 
 # Plot the r2 scores
-plot_histogram(test_r2_scores, test_Y, 'R2 scores',r2_threshold)
-plot_scatter(
-        test_r2_scores, 
-        test_Y, 
-        'R2 scores',
-        r2_threshold
-        )
+plot_scores(test_r2_scores, test_Y, 'R2 scores',r2_threshold)
 
 
 # R2 scoring does not take into account that the different axes
@@ -215,22 +230,23 @@ plot_scatter(
 training_errors = train_X - train_recreations
 test_errors     = test_X  - test_recreations
 
-train_ll_scores = log_likelihood(training_errors,training_errors)
-test_ll_scores = log_likelihood(training_errors,test_errors)
 
-ll_threshold = np.mean(train_ll_scores)-np.std(train_ll_scores)
-
-ll_predictions = threshold_predict(test_ll_scores, ll_threshold)
+test_ll_scores, ll_predictions, ll_thresh = predict( 
+        lambda a: log_likelihood(training_errors,a), 
+        training_errors, 
+        test_errors, 
+        0.3
+        )
 
 
 # Plot the ll scores
-plot_histogram(test_ll_scores, test_Y, 'log likelihood scores', ll_threshold)
-plot_scatter(
-        test_ll_scores, 
+plot_scores(
+        np.log(np.abs(test_ll_scores)), 
         test_Y, 
-        'log likelihood scores',
-        ll_threshold
+        'log(abs(log likelihood scores))', 
+        np.log(np.abs(ll_thresh))
         )
+
 
 
 # Another method is to take a principal component analysis of the data
@@ -247,51 +263,64 @@ plot_scatter(
 # where if the datapoints are within the ellipsoid, the point is most likely
 # an inlier.
 # Points outside the elipsoid on a minor axis will have a major impact on its
-# likelyhood of being an outlier
-pca = PCA(components).fit( training_errors )
+# likelihood of being an outlier
+aepca = PCA(components).fit( training_errors )
 
-# Find a decent threshold
-training_pca_scores = pca.score_samples( training_errors )
-#We found that 0.3 std was a good threshold
-pca_threshold = np.mean(training_pca_scores)-0.3*np.std(training_pca_scores)
+test_aepca_scores, aepca_predictions, aepca_thresh = predict(
+        aepca.score_samples, 
+        training_errors, 
+        test_errors, 
+        0.3
+        )
 
-# Predict whether the samples are inliers or outliers based off the threshold
-# If a sample has a score less than the threshold, it is unlikely to be
-# explained by the PCA elipsoid
-test_pca_scores = pca.score_samples( test_errors )
-pca_predictions = threshold_predict( test_pca_scores, pca_threshold )
+# Plot the AE-PCA scores
+plot_scores(
+        np.log(np.abs(test_aepca_scores)),
+        test_Y, 
+        'ln(abs(AE-PCA scores))',
+        np.log(np.abs(aepca_thresh))
+        )
+
+# It is worth noting that PCA performs many of the same tasks
+# as a simple autoencoder would do, and we would get similar results
+# by feeding the training data directly into the pca
+
+direct_pca = PCA(components).fit( train_X )
+test_dpca_scores, dpca_predictions, dpca_thresh = predict(
+        direct_pca.score_samples, 
+        train_X, 
+        test_X, 
+        0.3
+        )
 
 
 # Plot the PCA scores
-plot_histogram(
-        np.log(np.abs(test_pca_scores)),
+plot_scores(
+        np.log(np.abs(test_dpca_scores)),
         test_Y, 
-        'ln(abs(PCA scores))',
-        np.log(np.abs(pca_threshold))
-        )
-plot_scatter(
-        np.log(np.abs(test_pca_scores)), 
-        test_Y, 
-        'ln(abs(PCA scores))', 
-        np.log(np.abs(pca_threshold))
+        'ln(abs(Direct-PCA scores))',
+        np.log(np.abs(dpca_thresh))
         )
 
 
 
-
+# It seems r2 scoring performs better when we sample more data
 print("r2 report:")
 print(confusion_matrix(test_Y, r2_predictions))
 print(classification_report(test_Y, r2_predictions))
 
+# But LL has stable performance, even when undersampling
 print("LL report:")
 print(confusion_matrix(test_Y, ll_predictions))
 print(classification_report(test_Y, ll_predictions))
 
-print("PCA report:")
-print(confusion_matrix(test_Y, pca_predictions))
-print(classification_report(test_Y, pca_predictions))
+print("AE-PCA report:")
+print(confusion_matrix(test_Y, aepca_predictions))
+print(classification_report(test_Y, aepca_predictions))
 
-print("PCA outperforms R2")
+print("Direct-PCA report:")
+print(confusion_matrix(test_Y, dpca_predictions))
+print(classification_report(test_Y, dpca_predictions))
 
 
 inlier_errors = [x for x,y in zip(test_errors,test_Y) if y==0]
