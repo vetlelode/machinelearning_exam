@@ -17,40 +17,9 @@ from scipy.stats import invgamma
 hidden_layers = [20,10,2,10,20]
 components = 28
 activation = "tanh"
+# Higher threshold means less false positives, but also less true negatives
 threshold = 0.9
 
-class AutoEncoderErrorPCA:
-    def __init__(
-            self, 
-            solver       : str   ="adam", 
-            activation   : str   = "relu", 
-            hidden_layer_sizes : list = (20,20,5,20,20), 
-            warm_start   : bool  = False,
-            learning_rate: float = "adaptive",
-            max_iter     : int   = 200,
-            tol          : float = 1e-6,
-            classifier   : str   = "PCA",
-            components   : int   = None,
-            threshold    : float = None
-            ):
-        
-        clf = ("PCA", "difmean","errorlength")
-        if classifier not in clf:
-            raise Exception("invalid classifier")
-        
-        self.regressor = MLPRegressor(
-            solver=solver,
-            activation=activation,
-            hidden_layer_sizes = hidden_layer_sizes,
-            warm_start=warm_start,
-            learning_rate=learning_rate,
-            max_iter=max_iter,
-            tol=tol
-        )
-        
-        self.classifier = classifier
-        self.components = components
-        self.threshold  = threshold
 
 
 #Diagrams - Details unimportant
@@ -102,8 +71,8 @@ def encode(reg, X, layers:int, activation=activation):
             "relu": np.vectorize(lambda a: a if a>0 else 0)
             }
     activation_function = activations[activation]
-    layer = activation_function(data*coefficients[0] + intercepts[0])
-    for i in range(1,layers):
+    layer = data # activation_function(data*coefficients[0] + intercepts[0])
+    for i in range(layers):
         layer = activation_function(layer*coefficients[i] + intercepts[i])
     return layer
 
@@ -111,6 +80,7 @@ def encode(reg, X, layers:int, activation=activation):
 class LogLikelihood:
     def __init__(self, X):
         X = np.asmatrix(X)
+        self.X = X
         self.n_axes = X.shape[1]
         # log likelihood parameters
         # the mean of each axis
@@ -119,7 +89,7 @@ class LogLikelihood:
         self.σ2s = [np.var(X[:,i]) for i in range(self.n_axes)]
     
     def score(self, Y):
-        Y = np.asmatrix(Y)
+        Y = np.asarray(Y)
         # The PDF of the normal distribution is
         # e^(-(x - μ)^2/(2 σ^2))/(sqrt(2 π) σ)
         # Which is isomorphic to
@@ -130,25 +100,15 @@ class LogLikelihood:
         
         # We can then sum the log-likelihood of each axis
         # as that is isomorphic to taking the product of the likelihood
+        return sum([(Y.T[i]-self.μs[i])**2 / self.σ2s[i] for i in range(self.n_axes)])
         
-        log_likelihoods = []
-        for y in Y:
-            ll = sum([(y[0,i]-self.μs[i])**2 / self.σ2s[i] for i in range(self.n_axes)])
-            log_likelihoods.append( ll )
-        return log_likelihoods
-
-def predict(scoring_function, x_train, x_test, std_factor=1):
-    # Score the training data. These should have a low mean score
-    training_scores = scoring_function( x_train )
-    # Set the threshold to be std_factor standard deviations below the mean
-    # score of the training data
-    threshold = np.mean(training_scores)-std_factor*np.std(training_scores)
     
-    # Score the test data...
-    test_scores = scoring_function( x_test )
-    # Predict test class based off of whether their score is below the 
-    # threshold
-    return test_scores, threshold_predict( test_scores, threshold ), threshold
+    
+    def gamma_threshold(self, threshold):
+        # Calculate the describing parameters of the training data 
+        # gamma distribution, and the threshold
+        a, loc, scale = invgamma.fit(self.score(self.X))
+        return invgamma.isf(1-threshold, a, loc, scale), (a, loc, scale)
 
 
 def plot_scores(scores, Y, title, threshold=None):
@@ -156,8 +116,10 @@ def plot_scores(scores, Y, title, threshold=None):
     plot_scatter  ( scores, Y, title, threshold)
 
 
+
+
 # Obtain the dataset
-train_X, train_Y, test_X, test_Y = get_dataset(f=0)
+train_X, train_Y, test_X, test_Y = get_dataset(k1=2000,f=0)
 
 # Scale data to make training easier
 # -
@@ -235,98 +197,47 @@ plot_scores(test_r2_scores, test_Y, 'R2 scores',r2_threshold)
 training_errors = train_X - train_recreations
 test_errors     = test_X  - test_recreations
 
+
+# With log-likelihood the variance of the axes are taken into account
 LL = LogLikelihood(training_errors)
 
 # Score the training data. These should have a low mean score
 training_ll_scores = LL.score(training_errors)
 test_ll_scores     = LL.score(test_errors)
 
-a, loc, scale = invgamma.fit(training_ll_scores)
-ll_thresh = invgamma.isf(1-threshold, a, loc, scale)
+# The training scores should have a gamma distribution.
+# Find the parameters describing the distribution
+# Find a threshold that contains <threshold> of the training data
+# I.E. 0.9 means 10% of the training data will be categorized as outliers
 
+ll_thresh, ll_p = LL.gamma_threshold(threshold)
 
-bins = np.linspace(0, 200, 150)
-fig, ax = plt.subplots()
-ax.hist(training_ll_scores, bins)
-min_ylim, max_ylim = plt.ylim()
-ax.plot(bins, np.multiply(invgamma.pdf(bins, a, loc, scale),max_ylim*20))
+#ll_thresh, ll_p = gamma_threshold(training_ll_scores, threshold)
 
-plt.title("log likelihood training scores")
-plt.show()
-
-# The log likelihood is the sum of logs, which the expected error follows
-# the gamma distribution, where the expected error is digamma(k)+ln(theta)
-# or digamma(alpha) - ln(beta)
-
-#variance/mean = theta
-#mean^2 /variance=kk
-
+# Only the scores which surpasses the threshold will be considered an outlier
 ll_predictions = [1 if x > ll_thresh else 0 for x in test_ll_scores]
 
 
+
+
+# Some plotting
+bins = np.linspace(1, 200, 150)
+fig, ax = plt.subplots()
+# Plot the training scores
+ax.hist(training_ll_scores, bins, density=True)
+# Plot the describing gamma distribution (not to scale)
+min_ylim, max_ylim = plt.ylim()
+ax.plot(bins, np.multiply(invgamma.pdf(bins, *ll_p), max_ylim*20))
+plt.title("log likelihood training scores")
+plt.show()
+
 # Plot the ll scores
 plot_scores(
-        np.log(np.abs(test_ll_scores)), 
+        np.log(test_ll_scores), 
         test_Y, 
-        'log(abs(log likelihood scores))', 
-        np.log(np.abs(ll_thresh))
+        'log(log likelihood scores)', 
+        np.log(ll_thresh)
         )
-
-
-
-# Another method is to take a principal component analysis of the data
-# This takes into account that some axes are more important than others.
-# As the autoencoder scores are subject to the curse of dimensionality
-
-
-# Fit the pca to the training errors.
-# We have tried a number of different amount of components
-# but considering the axes are picked based off of the variance of the training 
-# data, omiting the lower variance axes might also omit the characteristic axes
-# of the outliers. We include all axes of the PCA.
-# This is only to transform the errors to an ellipsoid space
-# where if the datapoints are within the ellipsoid, the point is most likely
-# an inlier.
-# Points outside the elipsoid on a minor axis will have a major impact on its
-# likelihood of being an outlier
-aepca = PCA(components).fit( training_errors )
-
-test_aepca_scores, aepca_predictions, aepca_thresh = predict(
-        aepca.score_samples, 
-        training_errors, 
-        test_errors, 
-        0.3
-        )
-
-# Plot the AE-PCA scores
-plot_scores(
-        np.log(np.abs(test_aepca_scores)),
-        test_Y, 
-        'ln(abs(AE-PCA scores))',
-        np.log(np.abs(aepca_thresh))
-        )
-
-# It is worth noting that PCA performs many of the same tasks
-# as a simple autoencoder would do, and we would get similar results
-# by feeding the training data directly into the pca
-
-direct_pca = PCA(components).fit( train_X )
-test_dpca_scores, dpca_predictions, dpca_thresh = predict(
-        direct_pca.score_samples, 
-        train_X, 
-        test_X, 
-        0.3
-        )
-
-
-# Plot the PCA scores
-plot_scores(
-        np.log(np.abs(test_dpca_scores)),
-        test_Y, 
-        'ln(abs(Direct-PCA scores))',
-        np.log(np.abs(dpca_thresh))
-        )
-
 
 
 # It seems r2 scoring performs better when we sample more data
@@ -338,14 +249,6 @@ print(classification_report(test_Y, r2_predictions))
 print("LL report:")
 print(confusion_matrix(test_Y, ll_predictions))
 print(classification_report(test_Y, ll_predictions))
-
-print("AE-PCA report:")
-print(confusion_matrix(test_Y, aepca_predictions))
-print(classification_report(test_Y, aepca_predictions))
-
-print("Direct-PCA report:")
-print(confusion_matrix(test_Y, dpca_predictions))
-print(classification_report(test_Y, dpca_predictions))
 
 
 inlier_errors = [x for x,y in zip(test_errors,test_Y) if y==0]
