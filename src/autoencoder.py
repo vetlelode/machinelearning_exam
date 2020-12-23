@@ -3,23 +3,27 @@ import numpy as np
 from preprocessing import get_dataset
 from sklearn.neural_network import MLPRegressor
 import matplotlib.pyplot as plt
-from sklearn.decomposition import PCA
 from sklearn.metrics import classification_report, confusion_matrix, r2_score
 from sklearn.preprocessing import StandardScaler
-from sklearn.preprocessing import Normalizer, MinMaxScaler
-from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import MinMaxScaler
 
 from scipy.stats import invgamma
 
 
-
 #Hyperparameters:
-hidden_layers = [20,10,2,10,20]
+hidden_layers = [20,20,10,2,10,20,20]
 components = 28
-activation = "tanh"
+activation = "tanh" #or relu
 # Higher threshold means less false positives, but also less true negatives
 threshold = 0.9
 
+
+def relu(X):
+    return np.vectorize(lambda x: x if x>0 else 0)(X)
+
+
+def identity(x):
+    return x
 
 
 #Diagrams - Details unimportant
@@ -32,9 +36,9 @@ def plot_histogram(X, Y, title, threshold=None) -> None:
     X_inliers = [x for x,y in zip(X,Y) if y==0 ]
     X_outliers = [x for x,y in zip(X,Y) if y==1 ]
     
-    bins = np.linspace(lower_bound, upper_bound, 150)
+    bins = np.linspace(lower_bound, upper_bound, 250)
     
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(15,15))
     ax.hist(x=(X_inliers, X_outliers), bins=bins, alpha=0.5, label=('inliers','outliers'), stacked=False, histtype="stepfilled", density=True)
     ax.legend(loc='upper left')
     if threshold != None:
@@ -46,7 +50,8 @@ def plot_histogram(X, Y, title, threshold=None) -> None:
 
 #Diagrams - Details unimportant
 def plot_scatter(X,Y,title,threshold=None) -> None:
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize = (15,15))
+    
     scatter = ax.scatter(range(len(X)),X,c=Y, alpha=0.3)
     handles, labels = scatter.legend_elements()
     ax.legend(handles, ["inliers", "outliers"], loc='lower left')
@@ -56,20 +61,43 @@ def plot_scatter(X,Y,title,threshold=None) -> None:
     plt.title(title)
     plt.show()
 
+def plot_latent(network, Xs, cols=None, alphas=None, labels = None):
+    latent = [encode(network[:3], X) for X in Xs]
+    
+    figure, ax = plt.subplots(figsize = (25,25))
+    scatters = []
+    for i in range(len(latent)):
+        a = alphas[i] if alphas else 0.25
+        c = cols[i] if cols else None
+        s = ax.scatter(np.asarray(latent[i][:,0]),np.asarray(latent[i][:,1]), alpha=a, color=c)
+        scatters.append(s)
+    
+    ax.legend(scatters, labels,scatterpoints=1, loc='lower left')
+    plt.title('Latent Space', fontsize=15)
+    plt.xlabel('Z1', fontsize=10)
+    plt.ylabel('Z2', fontsize=10)
+    plt.axis('equal')
+    plt.show()
 
-
-def threshold_predict(scores,threshold):
-    return [1 if score < threshold else 0 for score in scores]
+def plot_gamma(scores, p, threshold, title, scale=0.3):
+    max_x = min(max(scores), np.mean(scores)+3*np.std(scores))
+    bins = np.linspace(0, max_x, 150)
+    fig, ax = plt.subplots(figsize=(15,15))
+    # Plot the training scores
+    ax.hist(scores, bins, density=True)
+    # Plot the describing gamma distribution (not to scale)
+    min_ylim, max_ylim = plt.ylim()
+    ax.plot(bins, np.multiply(invgamma.pdf(bins, *p), max_ylim*scale))
+    ax.vlines(threshold, min_ylim, max_ylim, color="black")
+    plt.title(title)
+    plt.show()
 
 
 def encode(network, X):
-    data = np.asmatrix(X)
-    z = data
+    z = np.asmatrix(X)
     for weight, bias, activation in network:
-        # concatenate the bias to fit the weight-layer multiplication
-        matbias = [bias]*z.shape[0]
         # sum the weights and then add the bias
-        z = activation(np.matmul(z, weight) + matbias)
+        z = activation( np.add(np.matmul(z, weight), bias ) )
     return np.asarray(z)
 
 
@@ -110,7 +138,27 @@ class LogLikelihood:
         return sum([(Y.T[i]-self.μs[i])**2 / self.σ2s[i] for i in range(self.n_axes)])
     
     
-    def gamma_threshold(self, threshold):
+    def predict(self, xtest, threshold):
+
+        # Score the training data. These should have a low mean score
+        scores     = self.score(xtest)
+        
+        # The training scores should have a gamma distribution.
+        # Find the parameters describing the distribution
+        # Find a threshold that contains <threshold> of the training data
+        # I.E. 0.9 means 10% of the training data will be categorized as outliers
+        
+        gamma_thresh, p = gamma_threshold(self.score(self.X), threshold)
+        
+        #aell_thresh, aell_p = gamma_threshold(training_ll_scores, threshold)
+        
+        # Only the scores which surpasses the threshold will be considered an outlier
+        predictions = [1 if x > gamma_thresh else 0 for x in scores]
+        
+        return scores, gamma_thresh, predictions, p
+
+
+def gamma_threshold(scores, threshold):
         # The density of values of the scores of the training data
         # follows the gamma distribution.
         # A sharp spike of likelihood followed by a sharp decline that 
@@ -122,19 +170,16 @@ class LogLikelihood:
         
         # Calculate the describing parameters of the training data 
         # gamma distribution, and the threshold
-        a, loc, scale = invgamma.fit(self.score(self.X))
+        a, loc, scale = invgamma.fit(scores)
         return invgamma.isf(1-threshold, a, loc, scale), (a, loc, scale)
-
 
 def plot_scores(scores, Y, title, threshold=None):
     plot_histogram( scores, Y, title, threshold)
     plot_scatter  ( scores, Y, title, threshold)
 
 
-
-
 # Obtain the dataset
-train_X, train_Y, test_X, test_Y = get_dataset(k1=2000,f=0)
+train_X, train_Y, test_X, test_Y = get_dataset(f=0)
 
 # Scale data to make training easier
 # -
@@ -169,21 +214,15 @@ auto_encoder.fit(train_X, train_X)
 
 # Plot out the latent space
 n_layers = len(auto_encoder.coefs_)
-activations = [np.tanh]*(n_layers-1)+[lambda a:a]
+
+activations = [np.tanh if activation =="tanh" else relu]*(n_layers-1)+[identity]
 network = list(zip(auto_encoder.coefs_, auto_encoder.intercepts_, activations))
 
-latent = encode(network[:3],test_X)
+inliers  = [x for x,y in zip(test_X,test_Y) if y==0]
+outliers = [x for x,y in zip(test_X,test_Y) if y==1]
 
-latent_inliers = np.asmatrix([x for x,y in zip(latent,test_Y) if y==0])
-latent_outliers = np.asmatrix([x for x,y in zip(latent,test_Y) if y==1])
-plt.figure(figsize = (10,10))
-plt.scatter(np.asarray(latent_inliers[:,0]),np.asarray(latent_inliers[:,1]), label = '0', alpha=0.3)
-plt.scatter(np.asarray(latent_outliers[:,0]),np.asarray(latent_outliers[:,1]), label = '1', alpha=0.3)
-plt.title('Latent Space', fontsize=15)
-plt.xlabel('Z1', fontsize=10)
-plt.ylabel('Z2', fontsize=10)
-plt.axis('equal')
-plt.show()
+plot_latent(network, Xs=(train_X,inliers,outliers), alphas=(0.2,0.5,0.5), cols=("blue","green","black"), labels=("training data","inliers","outliers"))
+
 
 # Recreate the data from the auto encoder
 train_recreations = auto_encoder.predict( train_X )
@@ -195,12 +234,24 @@ train_r2_scores = [r2_score( x_true, x_pred ) for x_true, x_pred in zip(train_X,
 test_r2_scores  = [r2_score( x_true, x_pred ) for x_true, x_pred in zip(test_X, test_recreations)]
 
 
+mm = max(train_r2_scores)
+train_r2_scores = -(train_r2_scores - mm)
+test_r2_scores = -(test_r2_scores - mm)
+
+r2_threshold, r2_p = gamma_threshold(train_r2_scores,threshold)
+
+plot_gamma(train_r2_scores, r2_p, r2_threshold, "training r2 scores", 0.3)
+
+# The scores from the training follows the gamma distribution, but the ones from
+
+
+
 # Find a decent threshold to split inliers and outliers
 # Use the 68% rule (1 standard deviation)
-r2_threshold = np.mean(train_r2_scores) - np.std(train_r2_scores)
+#r2_threshold = np.mean(train_r2_scores) + np.std(train_r2_scores)
 
 # Predict the test data wrt the r2 threshold
-r2_predictions = threshold_predict(test_r2_scores, r2_threshold)
+r2_predictions = [1 if x > r2_threshold else 0 for x in test_r2_scores]
 
 
 # Plot the r2 scores
@@ -219,62 +270,62 @@ test_errors     = test_X  - test_recreations
 
 
 # With log-likelihood the variance of the axes are taken into account
-LL = LogLikelihood(training_errors)
+ae_LL = LogLikelihood(training_errors)
 
 # Score the training data. These should have a low mean score
-training_ll_scores = LL.score(training_errors)
-test_ll_scores     = LL.score(test_errors)
-
-# The training scores should have a gamma distribution.
-# Find the parameters describing the distribution
-# Find a threshold that contains <threshold> of the training data
-# I.E. 0.9 means 10% of the training data will be categorized as outliers
-
-ll_thresh, ll_p = LL.gamma_threshold(threshold)
-
-#ll_thresh, ll_p = gamma_threshold(training_ll_scores, threshold)
-
-# Only the scores which surpasses the threshold will be considered an outlier
-ll_predictions = [1 if x > ll_thresh else 0 for x in test_ll_scores]
-
-
+training_aell_scores = ae_LL.score(training_errors)
+test_aell_scores, aell_threshold, aell_predictions, aell_p = ae_LL.predict(test_errors,threshold)
 
 
 # Some plotting
-bins = np.linspace(1, 200, 150)
-fig, ax = plt.subplots()
-# Plot the training scores
-ax.hist(training_ll_scores, bins, density=True)
-# Plot the describing gamma distribution (not to scale)
-min_ylim, max_ylim = plt.ylim()
-ax.plot(bins, np.multiply(invgamma.pdf(bins, *ll_p), max_ylim*20))
-plt.title("log likelihood training scores")
-plt.show()
+plot_gamma(training_aell_scores, aell_p, aell_threshold, "training AE-LL scores", 0.3)
 
 # Plot the ll scores
 plot_scores(
-        np.log(test_ll_scores), 
+        np.log(test_aell_scores), 
         test_Y, 
-        'log(log likelihood scores)', 
-        np.log(ll_thresh)
+        'log(log AE likelihood scores)', 
+        np.log(aell_threshold)
         )
 
 
+direct_LL = LogLikelihood(train_X)
+
+# Score the training data. These should have a low mean score
+training_dll_scores = ae_LL.score(training_errors)
+test_dll_scores, dll_threshold, dll_predictions, dll_p = ae_LL.predict(test_X,threshold)
+
+plot_gamma(training_dll_scores, dll_threshold, dll_p, 0.3)
+plot_scores(
+        np.log(test_dll_scores), 
+        test_Y, 
+        'log(log direct likelihood scores)', 
+        np.log(dll_threshold)
+        )
+
 # It seems r2 scoring performs better when we sample more data
+
 print("r2 report:")
 print(confusion_matrix(test_Y, r2_predictions))
 print(classification_report(test_Y, r2_predictions))
 
-# But LL has stable performance, even when undersampling
-print("LL report:")
-print(confusion_matrix(test_Y, ll_predictions))
-print(classification_report(test_Y, ll_predictions))
 
+# But AE-LL has stable performance, even when undersampling
+print("AE-LL report:")
+print(confusion_matrix(test_Y, aell_predictions))
+print(classification_report(test_Y, aell_predictions))
+
+# Direct LL gives usable results, but perform poorer with more data
+print("direct-LL report:")
+print(confusion_matrix(test_Y, dll_predictions))
+print(classification_report(test_Y, dll_predictions))
 
 inlier_errors = [x for x,y in zip(test_errors,test_Y) if y==0]
 outlier_errors = [x for x,y in zip(test_errors,test_Y) if y==1]
 
+# The recreation error of inliers are for the mostly uncorrelated
 plt.matshow(pd.DataFrame(inlier_errors).corr())
+plt
 plt.title("Correlation matrix: inlier errors")
 plt.show()
 
