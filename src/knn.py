@@ -6,13 +6,14 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import GridSearchCV
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, KernelPCA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.pipeline import make_pipeline
 import sys
 
 """
-Contains varying methods used to test the variations of the KNN classfiers.
+This file contains the various methods used by the various KNN model
+The methods of this file are all called form comparison.py using various flags
 """
 
 
@@ -55,7 +56,7 @@ def knn_NCA(X_train, Y_train, X_test, K=1) -> list:
     plt.ylabel('y')
     plt.show()
     # Classify using a KNN classifier
-    clf = KNeighborsClassifier(n_neighbors=K)
+    clf = KNeighborsClassifier(n_neighbors=K, leaf_size=2)
     clf.fit(X_train_nca, Y_train)
     # Return the predicted results
     return clf.predict(X_test_nca)
@@ -63,10 +64,12 @@ def knn_NCA(X_train, Y_train, X_test, K=1) -> list:
 
 def dim_reduc(X_train, Y_train, X_test, Y_test, K=1) -> None:
     """
-    Compare PCA and NCA dimensionalty reduction.
+    Compare PCA, kernel PCA, and NCA dimensionalty reduction.
     Slightly modified version of this code:
     https://scikit-learn.org/stable/auto_examples/neighbors/plot_nca_dim_reduction.html
     Only runs if the -dim argument is provided
+    KernelPCA and standard PCA give the same results
+    While NCA seems to have a slight edge
     """
     X = pd.concat([X_train, X_test])
     Y = Y_train + Y_test
@@ -79,16 +82,20 @@ def dim_reduc(X_train, Y_train, X_test, Y_test, K=1) -> None:
     nca = make_pipeline(StandardScaler(),
                         NeighborhoodComponentsAnalysis(n_components=2,
                                                        random_state=random_state))
+    # Reduce the dimensionalty using Kernel PCA
+    kernel_pca = make_pipeline(StandardScaler(),
+                               KernelPCA(2, random_state=random_state))
 
     # Use a nearest neighbor classifier to evaluate the methods
-    knn = KNeighborsClassifier(n_neighbors=1)
+    knn = KNeighborsClassifier(n_neighbors=K)
 
     # Make a list of the methods to be compared
-    dim_reduction_methods = [('PCA', pca), ('NCA', nca)]
+    dim_reduction_methods = [('PCA', pca), ('NCA', nca),
+                             ('KernelPCA', kernel_pca)]
 
-    plt.figure()
+    # plt.figure()
     for i, (name, model) in enumerate(dim_reduction_methods):
-        # plt.figure()
+        plt.figure()
         # plt.subplot(1, 3, i + 1, aspect=1)
 
         # Fit the method's model
@@ -116,9 +123,6 @@ def knnGridSearch(X_train, Y_train, X_test, Y_test) -> list:
     # Params used for the gird search
     grid_params = {
         'n_neighbors': [1, 3, 5],
-        'weights': ['uniform', 'distance'],
-        'metric': ['minkowski', 'manhattan'],
-        'leaf_size': [2, 3, 5, 10, 15, 30],
     }
     # Scale all the output using a standard scaler
     scaler = StandardScaler()

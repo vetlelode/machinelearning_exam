@@ -12,13 +12,13 @@ def runComp():
     """
     Run the KNN algorithm on the dataset with the provided flags
     """
-    X_train, Y_train, X_test, Y_test = get_dataset(2000, 450, 0.5)
+    X_train, Y_train, X_test, Y_test = get_dataset(5000, 450, 0.7)
     cols = ["Time", "V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "V10", "V11", "V12", "V13", "V14", "V15",
             "V16", "V17", "V18", "V19", "V20", "V21", "V22", "V23", "V24", "V25", "V26", "V27", "V28", "Amount"]
     X_train = pd.DataFrame(X_train, columns=cols)
     X_test = pd.DataFrame(X_test, columns=cols)
-    X_train.drop(columns="Time")
-    X_test.drop(columns="Time")
+    # X_train.drop(columns="Time")
+    # X_test.drop(columns="Time")
     Y_pred = runKNN(X_train, Y_train, X_test, 1)
     # Print out the confusion matrix since its more relevant than the overall accuracy
     cf_knn = confusion_matrix(Y_test, Y_pred)
@@ -26,7 +26,7 @@ def runComp():
     if len(sys.argv) >= 2:
         if "-grid" in sys.argv:
             # Run a grid search to find the overall best configuration for the KNN classifier.
-            findBestParams(X_train, Y_train, X_test, Y_test)
+            knnGridSearch(X_train, Y_train, X_test, Y_test)
         elif "-corr" in sys.argv:
             # Print out a correlation matrix for the entire dataset, allowing some limited insight into the correlation of the attributes to the class
             correlationMatrix()
@@ -53,10 +53,6 @@ def correlationMatrix():
     print(res['Class'])
     sn.heatmap(corrMatrix, annot=True)
     plt.show()
-
-
-def findBestParams(X_train, Y_train, X_test, Y_test):
-    knnGridSearch(X_train, Y_train, X_test, Y_test)
 
 
 if __name__ == "__main__":
