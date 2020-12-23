@@ -16,6 +16,18 @@ activation = "tanh" #or relu. Tanh works best (and giges the nicest graphs!)
 # Higher threshold means less false positives, but also less true negatives
 threshold = 0.9
 
+# max 30
+axes_of_importance = 15
+
+# sort axes by variance    : variance
+# sort axes by correlation : correlation
+axes_relation = "correlation"
+
+# use lowest var/corr axes : low
+# use highest var/corr axes: high
+axis_sort = "low"
+
+# low correlation axes work well
 
 def relu(X):
     return np.vectorize(lambda x: x if x>0 else 0)(X)
@@ -178,11 +190,36 @@ def plot_scores(scores, Y, title, threshold=None):
     plot_scatter  ( np.log(scores), Y, f"log({title})", np.log(threshold))
 
 
+def sort_axes_by_correlation(corr_basis):
+    corr = pd.DataFrame(corr_basis).corr()
+    axis_importance = [(sum(c**2),i) for c,i in zip(np.asarray(corr),range(corr.shape[0]))]
+    most_significant_axes = np.asarray(sorted(axis_importance)[-1:0:-1])[:,1]
+    # for some reason, the indices are casted to float, which cannot be used as
+    # indices
+    return np.vectorize(int)(most_significant_axes)
+
+def sort_axes_by_variance(var_basis):
+    var_basis = np.asmatrix(var_basis)
+    axis_importance = [(np.var(var_basis[:,i]),i) for i in range(var_basis.shape[1])]
+    most_significant_axes = np.asarray(sorted(axis_importance)[-1:0:-1])[:,1]
+    # for some reason, the indices are casted to float, which cannot be used as
+    # indices
+    return np.vectorize(int)(most_significant_axes)
+
 # MAIN PROGRAM
 
 
 # Obtain the dataset
 train_X, train_Y, test_X, test_Y = get_dataset(k1=training_size,f=0)
+
+most_correlated_axes = sort_axes_by_variance(train_X) if axes_relation == "variance" else sort_axes_by_correlation(train_X)
+
+if axis_sort == "high":
+    train_X = np.asmatrix(train_X)[:,most_correlated_axes[-axes_of_importance:]]
+    test_X = np.asmatrix(test_X)[:,most_correlated_axes[-axes_of_importance:]]
+else:
+    train_X = np.asmatrix(train_X)[:,most_correlated_axes[:axes_of_importance]]
+    test_X = np.asmatrix(test_X)[:,most_correlated_axes[:axes_of_importance]]
 
 # Scale data to make training easier
 # -
@@ -253,8 +290,6 @@ r2_predictions = [1 if x > r2_threshold else 0 for x in test_r2_scores]
 
 # Plot the gamma distribution of best fit
 plot_gamma(train_r2_scores, r2_p, r2_threshold, "training r2 scores")
-
-# Plot the r2 scores
 plot_scores(test_r2_scores, test_Y, 'R2 scores',r2_threshold)
 
 
@@ -279,15 +314,8 @@ test_aell_scores, aell_threshold, aell_predictions, aell_p = ae_LL.predict(test_
 
 
 # Plot the gamma distribution of best fit
-plot_gamma(training_aell_scores, aell_p, aell_threshold, "training AE-LL scores")
-
-# Plot the ll scores
-plot_scores(
-        test_aell_scores, 
-        test_Y, 
-        'log(log AE likelihood scores)', 
-        aell_threshold
-        )
+plot_gamma( training_aell_scores, aell_p, aell_threshold, "training AE-LL scores" )
+plot_scores( test_aell_scores, test_Y, 'AE log-likelihood scores', aell_threshold )
 
 
 # Log-Likelihood is a statistical model we can use directly on the data as well,
@@ -303,12 +331,7 @@ test_dll_scores, dll_threshold, dll_predictions, dll_p = ae_LL.predict(test_X,th
 
 # Plot the gamma distribution of best fit
 plot_gamma(training_dll_scores, dll_p, dll_threshold, "Direct Log Likelihood scores", 20)
-plot_scores(
-        test_dll_scores, 
-        test_Y, 
-        'log(log direct likelihood scores)', 
-        dll_threshold
-        )
+plot_scores( test_dll_scores, test_Y, 'direct log-likelihood scores)', dll_threshold )
 
 # It seems r2 scoring performs better when we sample more data
 # The statistical model fitted from the training data, used to set a threshold,
@@ -352,3 +375,11 @@ plt.show()
 plt.matshow(pd.DataFrame(training_errors).corr())
 plt.title("Correlation matrix: training errors")
 plt.show()
+
+
+
+"""    
+reduced_test_X = test_X[:,most_significant_axes]
+reduced_test_recreations = test_recreations[:,most_significant_axes]
+adjtest_r2_scores  = [r2_score( x_true, x_pred ) for x_true, x_pred in zip(reduced_test_X, reduced_test_recreations)]
+"""
