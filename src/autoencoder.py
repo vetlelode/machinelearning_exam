@@ -64,13 +64,12 @@ def threshold_predict(scores,threshold):
 
 def encode(network, X):
     data = np.asmatrix(X)
-    layer = data
+    z = data
     for weight, bias, activation in network:
         # concatenate the bias to fit the weight-layer multiplication
-        matbias = [bias]*layer.shape[0]
+        matbias = [bias]*z.shape[0]
         # sum the weights and then add the bias
-        z = np.matmul(layer, weight) + matbias
-        layer = activation(z)
+        z = activation(np.matmul(z, weight) + matbias)
     return np.asarray(z)
 
 
