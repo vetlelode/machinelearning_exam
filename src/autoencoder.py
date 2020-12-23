@@ -61,20 +61,17 @@ def plot_scatter(X,Y,title,threshold=None) -> None:
 def threshold_predict(scores,threshold):
     return [1 if score < threshold else 0 for score in scores]
 
-#https://i-systems.github.io/teaching/ML/iNotes/15_Autoencoder.html
-def encode(reg, X, layers:int, activation=activation):
+
+def encode(network, X):
     data = np.asmatrix(X)
-    coefficients = reg.coefs_
-    intercepts = reg.intercepts_
-    activations = {
-            "tanh": lambda a: (np.exp(a) - np.exp(-a))/(np.exp(a) + np.exp(-a)),
-            "relu": np.vectorize(lambda a: a if a>0 else 0)
-            }
-    activation_function = activations[activation]
-    layer = data # activation_function(data*coefficients[0] + intercepts[0])
-    for i in range(layers):
-        layer = activation_function(layer*coefficients[i] + intercepts[i])
-    return layer
+    layer = data
+    for weight, bias, activation in network:
+        # concatenate the bias to fit the weight-layer multiplication
+        matbias = [bias]*layer.shape[0]
+        # sum the weights and then add the bias
+        z = np.matmul(layer, weight) + matbias
+        layer = activation(z)
+    return np.asarray(z)
 
 
 class LogLikelihood:
@@ -82,6 +79,8 @@ class LogLikelihood:
         X = np.asmatrix(X)
         self.X = X
         self.n_axes = X.shape[1]
+        # Create a n-dimensional normal distribution:
+        
         # log likelihood parameters
         # the mean of each axis
         self.μs = [np.mean(X[:,i]) for i in range(self.n_axes)]
@@ -93,18 +92,35 @@ class LogLikelihood:
         # The PDF of the normal distribution is
         # e^(-(x - μ)^2/(2 σ^2))/(sqrt(2 π) σ)
         # Which is isomorphic to
-        # -(x - μ)^2 / (σ^2)
+        # (x - μ)^2 / (σ^2)
         # the exact probabilities are not important to the scoring,
         # only that two scores in one distribution have the same
-        # relationship as in the other (f(a)<f(b) <=> g(a)<g(b))
+        # relationship as in the other R(f(a),f(b)) <=> R(g(a),g(b))
+        
+        # f(x)=e^(-(x - μ)^2/(2 σ^2))/(sqrt(2 π) σ)
+        # g(x)=(x - μ)^2 / (σ^2)
+        
+        # ln(f(x))=-(x - μ)^2/(2 σ^2)-ln(sqrt(2 π) σ)
+        # ln(f(x))+ln(sqrt(2 π) σ)=-(x - μ)^2/(2 σ^2)
+        # -2(ln(f(x))+ln(sqrt(2 π) σ)) = (x - μ)^2 / (σ^2)
+        # g(x) = -ln(f(x)^2 2 π σ^2)
+        
         
         # We can then sum the log-likelihood of each axis
         # as that is isomorphic to taking the product of the likelihood
         return sum([(Y.T[i]-self.μs[i])**2 / self.σ2s[i] for i in range(self.n_axes)])
-        
     
     
     def gamma_threshold(self, threshold):
+        # The density of values of the scores of the training data
+        # follows the gamma distribution.
+        # A sharp spike of likelihood followed by a sharp decline that 
+        # smoothens out slowly.
+        
+        # In other words, it does not follow a normal distribution,
+        # and as such, a more sohpisticated method to find the apropriate
+        # threshold is warranted.
+        
         # Calculate the describing parameters of the training data 
         # gamma distribution, and the threshold
         a, loc, scale = invgamma.fit(self.score(self.X))
@@ -153,7 +169,12 @@ auto_encoder.fit(train_X, train_X)
 
 
 # Plot out the latent space
-latent = np.asarray(encode(auto_encoder, test_X, 3, activation))
+n_layers = len(auto_encoder.coefs_)
+activations = [np.tanh]*(n_layers-1)+[lambda a:a]
+network = list(zip(auto_encoder.coefs_, auto_encoder.intercepts_, activations))
+
+latent = encode(network[:3],test_X)
+
 latent_inliers = np.asmatrix([x for x,y in zip(latent,test_Y) if y==0])
 latent_outliers = np.asmatrix([x for x,y in zip(latent,test_Y) if y==1])
 plt.figure(figsize = (10,10))
