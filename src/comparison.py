@@ -7,6 +7,12 @@ from knn import runKNN, knnGridSearch, knn_NCA, dim_reduc
 import seaborn as sn
 import matplotlib.pyplot as plt
 
+"""
+Compare various methods and paramaters for running the KNN classifier
+With the two main ones being standard KNN and KNN with PCA dimensionalty reduction.
+KNN with PCA generally has a slight edge in peformance.
+"""
+
 
 def runComp():
     """
@@ -23,6 +29,8 @@ def runComp():
     # Print out the confusion matrix since its more relevant than the overall accuracy
     cf_knn = confusion_matrix(Y_test, Y_pred)
     print("Confusion matrix for KNN:\n{}".format(cf_knn))
+    print("Classification report for standard KNN:\n {}".format(
+        classification_report(Y_test, Y_pred)))
     if len(sys.argv) >= 2:
         if "-grid" in sys.argv:
             # Run a grid search to find the overall best configuration for the KNN classifier.
@@ -36,6 +44,8 @@ def runComp():
             # Print out the confusion matrix since its more relevant than the overall accuracy
             cf_knn_nca = confusion_matrix(Y_test, Y_pred_nca)
             print("Confusion matrix for KNN with NCA:\n{}".format(cf_knn_nca))
+            print("Classification report for KNN with NCA:\n {}".format(
+                classification_report(Y_test, Y_pred_nca)))
         elif "-dim" in sys.argv:
             # Function comparing the results of PCA and NCA
             dim_reduc(X_train, Y_train, X_test, Y_test, 1)
