@@ -5,7 +5,6 @@ from sklearn.neural_network import MLPRegressor
 import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report, confusion_matrix, r2_score
 from sklearn.preprocessing import StandardScaler
-from sklearn.preprocessing import MinMaxScaler
 
 from scipy.stats import invgamma
 
@@ -80,6 +79,7 @@ def plot_latent(network, Xs, cols=None, alphas=None, labels = None):
     plt.show()
 
 def plot_gamma(scores, p, threshold, title, scale=0.3):
+    #
     max_x = min(max(scores), np.mean(scores)+3*np.std(scores))
     bins = np.linspace(0, max_x, 150)
     fig, ax = plt.subplots(figsize=(15,15))
@@ -179,7 +179,7 @@ def plot_scores(scores, Y, title, threshold=None):
 
 
 # Obtain the dataset
-train_X, train_Y, test_X, test_Y = get_dataset(f=0)
+train_X, train_Y, test_X, test_Y = get_dataset(k1=8000,f=0)
 
 # Scale data to make training easier
 # -
@@ -278,7 +278,7 @@ test_aell_scores, aell_threshold, aell_predictions, aell_p = ae_LL.predict(test_
 
 
 # Some plotting
-plot_gamma(training_aell_scores, aell_p, aell_threshold, "training AE-LL scores", 0.3)
+plot_gamma(training_aell_scores, aell_p, aell_threshold, "training AE-LL scores", 20)
 
 # Plot the ll scores
 plot_scores(
@@ -295,7 +295,7 @@ direct_LL = LogLikelihood(train_X)
 training_dll_scores = ae_LL.score(training_errors)
 test_dll_scores, dll_threshold, dll_predictions, dll_p = ae_LL.predict(test_X,threshold)
 
-plot_gamma(training_dll_scores, dll_threshold, dll_p, 0.3)
+plot_gamma(training_dll_scores, dll_p, dll_threshold, 20)
 plot_scores(
         np.log(test_dll_scores), 
         test_Y, 
