@@ -14,14 +14,15 @@ from scipy.stats import invgamma
 # Hyperparameters:
 train_size    = 0.8 #0-1
 pollution     = 0   #0-1
-undersampling = 0.2 #0-1, though should not be below 1-threshold
-training_size = REAL_DATA_MAX_N #284315
+undersampling = 0.5 #0-1, though should not be below 1-threshold
+
 hidden_layers = [10,10,2,10,10]
 activation = "tanh" #or relu. Tanh works best (and gives the nicest graphs!)
 
 # The percentile above which we can consider everything an outlier.
 # Higher threshold means less false positives, but also less true negatives
 threshold = 0.9
+
 
 def relu(X):
     return np.vectorize(lambda x: x if x>0 else 0)(X)
@@ -48,19 +49,6 @@ def plot_latent(network, Xs, cols=None, alphas=None, labels = None):
     plt.xlabel('Z1', fontsize=10)
     plt.ylabel('Z2', fontsize=10)
     plt.axis('equal')
-    plt.show()
-
-def plot_gamma(scores, p, threshold, title, scale=0.3):
-    max_x = min(max(scores)*1.5, np.mean(scores)+3*np.std(scores))
-    bins = np.linspace(0, max_x, 250)
-    fig, ax = plt.subplots(figsize=(15,15))
-    # Plot the training scores
-    ax.hist(scores, bins, density=True, stacked=True)
-    # Plot the describing gamma distribution (not to scale)
-    min_ylim, max_ylim = plt.ylim()
-    ax.plot(bins, invgamma.pdf(bins, *p))
-    ax.vlines(threshold, min_ylim, max_ylim, color="black")
-    plt.title(title)
     plt.show()
 
 
@@ -146,21 +134,19 @@ def gamma_threshold(scores, threshold):
 
 def plot_report(
         train_x, 
-        test_x, 
-        test_y, 
+        inliers, 
+        outliers, 
         p, 
         threshold, 
         title=None,
         xscale="linear",
         xaxis="score"):
     
-    max_x = max(max(train_x), max(test_x))
-    max_x = min(max_x, 8*np.std(train_x))
-    min_x = min(min(train_x), min(test_x))
+    max_x = max(max(train_x), max(inliers), max(outliers))
+    max_x = min(max_x, 8*np.std(outliers))
+    min_x = min(min(train_x), min(inliers), min(outliers))
     
     # Plot the training scores
-    X_inliers = [x for x,y in zip(test_x,test_y) if y==0 ]
-    X_outliers = [x for x,y in zip(test_x,test_y) if y==1 ]
     bins = np.linspace(min_x, max_x, 150)
     if xscale == "log":
         bins = np.logspace(np.log10(min_x),np.log10(max_x),len(bins))
@@ -168,7 +154,7 @@ def plot_report(
     
     fig, ax = plt.subplots(figsize=(15,15))
     ax.hist(
-            x=(train_x, X_inliers), 
+            x=(train_x, inliers), 
             bins=bins, 
             alpha=0.35,
             color=("blue","yellow"), 
@@ -178,7 +164,7 @@ def plot_report(
             label=("Training data","Inliers")
             )
     ax.hist(
-            x=X_outliers, 
+            x=outliers, 
             bins=bins, 
             alpha=0.35, 
             color="black", 
@@ -195,6 +181,15 @@ def plot_report(
     plt.ylabel("Density")
     plt.title(title)
     plt.show()
+
+def split_inliers_outliers(X,Y):
+    inliers, outliers = [], []
+    for i in range(len(X)):
+        if Y[i]==0:
+            inliers.append(X[i])
+        else:
+            outliers.append(X[i])
+    return inliers, outliers
 
 # MAIN PROGRAM
 
@@ -218,8 +213,7 @@ scaler = StandardScaler().fit(train_X)
 train_X = scaler.transform(train_X)
 test_X = scaler.transform(test_X)
 
-inliers  = np.asarray([x for x,y in zip(test_X,test_Y) if y==0])
-outliers = np.asarray([x for x,y in zip(test_X,test_Y) if y==1])
+inliers, outliers = split_inliers_outliers(test_X,test_Y)
 
 # Train a neural net into accurately recreate the input data 
 # through a small latent space.
@@ -255,8 +249,10 @@ test_recreations  = auto_encoder.predict( test_X  )
 
 # Score the samples with r2. This is the loss function used in the autoencoder.
 # This is done because sklearn auto encoder does not support per sample scoring
-train_r2_scores = [r2_score( x_true, x_pred ) for x_true, x_pred in zip(train_X, train_recreations)]
-test_r2_scores  = [r2_score( x_true, x_pred ) for x_true, x_pred in zip(test_X, test_recreations)]
+#train_r2_scores = [r2_score( x_true, x_pred ) for x_true, x_pred in zip(train_X, train_recreations)]
+train_r2_scores = [r2_score( train_X[i], train_recreations[i] ) for i in range(len(train_X))]
+test_r2_scores = [r2_score( test_X[i], test_recreations[i] ) for i in range(len(test_X))]
+#test_r2_scores  = [r2_score( x_true, x_pred ) for x_true, x_pred in zip(test_X, test_recreations)]
 
 
 # Adjust the scores - Shift it so all the scores are positive
@@ -280,7 +276,13 @@ r2_predictions = [1 if x > r2_threshold else 0 for x in test_r2_scores]
 #plot_gamma(train_r2_scores, r2_p, r2_threshold, "training r2 scores")
 
 #plot_scores(test_r2_scores, test_Y, 'R2 scores',r2_threshold)
-plot_report(train_r2_scores, test_r2_scores, test_Y, r2_p, r2_threshold, "R2")
+plot_report(
+        train_r2_scores, 
+        *split_inliers_outliers(test_r2_scores,test_Y), 
+        r2_p, 
+        r2_threshold, 
+        "R2"
+        )
 
 # R2 scoring does not take into account that the different axes
 # might have different variances. Since the model is trained
@@ -305,8 +307,7 @@ test_aell_scores, aell_threshold, aell_predictions, aell_p = ae_LL.predict(test_
 # Plot the gamma distribution of best fit
 plot_report(
         training_aell_scores, 
-        test_aell_scores, 
-        test_Y, 
+        *split_inliers_outliers(test_aell_scores,test_Y),
         aell_p, 
         aell_threshold, 
         title="Scoring by Log-Likelihood from AE-recreation-error",
@@ -329,8 +330,7 @@ test_dll_scores, dll_threshold, dll_predictions, dll_p = direct_LL.predict(test_
 # Plot the gamma distribution of best fit
 plot_report(
         training_dll_scores, 
-        test_dll_scores, 
-        test_Y, 
+        *split_inliers_outliers(test_dll_scores,test_Y),
         dll_p, 
         dll_threshold, 
         title="Log-Likelihood scores on the raw data",
@@ -358,7 +358,7 @@ print(confusion_matrix(test_Y, aell_predictions))
 print(classification_report(test_Y, aell_predictions))
 
 # Direct LL gives comparably good results as AE-LL
-# This means AE can be considered redundant
+# This means AE can be considered redundant wrt Log-Likelihood
 print("direct-LL report:")
 print(confusion_matrix(test_Y, dll_predictions))
 print(classification_report(test_Y, dll_predictions))
@@ -366,8 +366,7 @@ print(classification_report(test_Y, dll_predictions))
 
 # Covariance analysis
 
-inlier_errors = [x for x,y in zip(test_errors,test_Y) if y==0]
-outlier_errors = [x for x,y in zip(test_errors,test_Y) if y==1]
+inlier_errors, outlier_errors = split_inliers_outliers(test_errors,test_Y)
 
 # The recreation error of inliers are for the mostly uncorrelated
 plt.matshow(pd.DataFrame(inlier_errors).corr())
