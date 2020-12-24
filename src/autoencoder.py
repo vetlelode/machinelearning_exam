@@ -1,3 +1,5 @@
+# Author: Ask H. B.
+
 import pandas as pd
 import numpy as np
 from preprocessing import get_dataset, REAL_DATA_MAX_N
@@ -9,25 +11,17 @@ from sklearn.preprocessing import StandardScaler
 from scipy.stats import invgamma
 
 
-#Hyperparameters:
-training_size = REAL_DATA_MAX_N//10 #284315
-hidden_layers = [20,10,2,10,20]
-activation = "tanh" #or relu. Tanh works best (and giges the nicest graphs!)
+# Hyperparameters:
+train_size    = 0.8 #0-1
+pollution     = 0   #0-1
+undersampling = 0.2 #0-1, though should not be below 1-threshold
+training_size = REAL_DATA_MAX_N #284315
+hidden_layers = [10,10,2,10,10]
+activation = "tanh" #or relu. Tanh works best (and gives the nicest graphs!)
+
+# The percentile above which we can consider everything an outlier.
 # Higher threshold means less false positives, but also less true negatives
 threshold = 0.9
-
-# max 30
-axes_of_importance = 15
-
-# sort axes by variance    : variance
-# sort axes by correlation : correlation
-axes_relation = "correlation"
-
-# use lowest var/corr axes : low
-# use highest var/corr axes: high
-axis_sort = "low"
-
-# low correlation axes work well
 
 def relu(X):
     return np.vectorize(lambda x: x if x>0 else 0)(X)
@@ -38,40 +32,6 @@ def identity(x):
 
 
 #Diagrams - Details unimportant
-def plot_histogram(X, Y, title, threshold : float = None) -> None:
-    #Omit extreme outliers
-    std = np.std(X)
-    mean = np.mean(X)
-    lower_bound, upper_bound = max(min(X), mean-2*std), min(max(X),mean+2*std)
-    
-    X_inliers = [x for x,y in zip(X,Y) if y==0 ]
-    X_outliers = [x for x,y in zip(X,Y) if y==1 ]
-    
-    bins = np.linspace(lower_bound, upper_bound, 250)
-    
-    fig, ax = plt.subplots(figsize=(15,15))
-    ax.hist(x=(X_inliers, X_outliers), bins=bins, alpha=0.5, label=('inliers','outliers'), stacked=False, histtype="stepfilled", density=True)
-    ax.legend(loc='upper left')
-    if threshold != None:
-        min_ylim, max_ylim = plt.ylim()
-        ax.vlines(threshold,min_ylim,max_ylim)
-    plt.title(title)
-    plt.show()
-
-
-#Diagrams - Details unimportant
-def plot_scatter(X,Y,title,threshold=None) -> None:
-    fig, ax = plt.subplots(figsize = (15,15))
-    
-    scatter = ax.scatter(range(len(X)),X,c=Y, alpha=0.3)
-    handles, labels = scatter.legend_elements()
-    ax.legend(handles, ["inliers", "outliers"], loc='lower left')
-    if threshold != None:
-        min_xlim, max_xlim = plt.xlim()
-        ax.hlines(threshold,min_xlim,max_xlim)
-    plt.title(title)
-    plt.show()
-
 def plot_latent(network, Xs, cols=None, alphas=None, labels = None):
     latent = [encode(network[:3], X) for X in Xs]
     
@@ -184,42 +144,67 @@ def gamma_threshold(scores, threshold):
         a, loc, scale = invgamma.fit(scores)
         return invgamma.isf(1-threshold, a, loc, scale), (a, loc, scale)
 
-
-def plot_scores(scores, Y, title, threshold=None):
-    plot_histogram( scores, Y, title, threshold)
-    plot_scatter  ( np.log(scores), Y, f"log({title})", np.log(threshold))
-
-
-def sort_axes_by_correlation(corr_basis):
-    corr = pd.DataFrame(corr_basis).corr()
-    axis_importance = [(sum(c**2),i) for c,i in zip(np.asarray(corr),range(corr.shape[0]))]
-    most_significant_axes = np.asarray(sorted(axis_importance)[-1:0:-1])[:,1]
-    # for some reason, the indices are casted to float, which cannot be used as
-    # indices
-    return np.vectorize(int)(most_significant_axes)
-
-def sort_axes_by_variance(var_basis):
-    var_basis = np.asmatrix(var_basis)
-    axis_importance = [(np.var(var_basis[:,i]),i) for i in range(var_basis.shape[1])]
-    most_significant_axes = np.asarray(sorted(axis_importance)[-1:0:-1])[:,1]
-    # for some reason, the indices are casted to float, which cannot be used as
-    # indices
-    return np.vectorize(int)(most_significant_axes)
+def plot_report(
+        train_x, 
+        test_x, 
+        test_y, 
+        p, 
+        threshold, 
+        title=None,
+        xscale="linear",
+        xaxis="score"):
+    
+    max_x = max(max(train_x), max(test_x))
+    max_x = min(max_x, 8*np.std(train_x))
+    min_x = min(min(train_x), min(test_x))
+    
+    # Plot the training scores
+    X_inliers = [x for x,y in zip(test_x,test_y) if y==0 ]
+    X_outliers = [x for x,y in zip(test_x,test_y) if y==1 ]
+    bins = np.linspace(min_x, max_x, 150)
+    if xscale == "log":
+        bins = np.logspace(np.log10(min_x),np.log10(max_x),len(bins))
+        
+    
+    fig, ax = plt.subplots(figsize=(15,15))
+    ax.hist(
+            x=(train_x, X_inliers), 
+            bins=bins, 
+            alpha=0.35,
+            color=("blue","yellow"), 
+            histtype="barstacked",
+            density=True, 
+            stacked=True, 
+            label=("Training data","Inliers")
+            )
+    ax.hist(
+            x=X_outliers, 
+            bins=bins, 
+            alpha=0.35, 
+            color="black", 
+            density=True, 
+            stacked=True, 
+            label="Outliers"
+            )
+    min_ylim, max_ylim = plt.ylim()
+    ax.plot(bins, invgamma.pdf(bins, *p), label="Distribution curve of best fit")
+    ax.vlines(threshold, min_ylim, max_ylim, color="black", label="Threshold")
+    ax.legend(loc='upper left')
+    ax.set_xscale(xscale)
+    plt.xlabel(xaxis)
+    plt.ylabel("Density")
+    plt.title(title)
+    plt.show()
 
 # MAIN PROGRAM
 
 
 # Obtain the dataset
-train_X, train_Y, test_X, test_Y = get_dataset(k1=training_size,f=0)
+train_X, train_Y, test_X, test_Y = get_dataset(pollution=0, train_size=0.8)
 
-most_correlated_axes = sort_axes_by_variance(train_X) if axes_relation == "variance" else sort_axes_by_correlation(train_X)
-
-if axis_sort == "high":
-    train_X = np.asmatrix(train_X)[:,most_correlated_axes[-axes_of_importance:]]
-    test_X = np.asmatrix(test_X)[:,most_correlated_axes[-axes_of_importance:]]
-else:
-    train_X = np.asmatrix(train_X)[:,most_correlated_axes[:axes_of_importance]]
-    test_X = np.asmatrix(test_X)[:,most_correlated_axes[:axes_of_importance]]
+undersample_idx = int(undersampling * len(train_X))
+train_X = train_X[:undersample_idx]
+train_Y = train_Y[:undersample_idx]
 
 # Scale data to make training easier
 # -
@@ -233,8 +218,8 @@ scaler = StandardScaler().fit(train_X)
 train_X = scaler.transform(train_X)
 test_X = scaler.transform(test_X)
 
-inliers  = [x for x,y in zip(test_X,test_Y) if y==0]
-outliers = [x for x,y in zip(test_X,test_Y) if y==1]
+inliers  = np.asarray([x for x,y in zip(test_X,test_Y) if y==0])
+outliers = np.asarray([x for x,y in zip(test_X,test_Y) if y==1])
 
 # Train a neural net into accurately recreate the input data 
 # through a small latent space.
@@ -260,7 +245,7 @@ activations = [np.tanh if activation =="tanh" else relu]*(n_layers-1)+[identity]
 network = list(zip(auto_encoder.coefs_, auto_encoder.intercepts_, activations))
 
 # Plot out the latent space (Pretty!)
-plot_latent(network, Xs=(train_X,inliers,outliers), alphas=(0.2,0.5,0.5), cols=("blue","green","black"), labels=("training data","inliers","outliers"))
+plot_latent(network, Xs=(train_X,inliers,outliers), alphas=(0.2,0.3,0.5), cols=("blue","yellow","black"), labels=("training data","inliers","outliers"))
 
 
 # Recreate the data from the auto encoder
@@ -275,7 +260,7 @@ test_r2_scores  = [r2_score( x_true, x_pred ) for x_true, x_pred in zip(test_X, 
 
 
 # Adjust the scores - Shift it so all the scores are positive
-mm = max(train_r2_scores)
+mm = max(train_r2_scores) + 0e-4  # add a small value to avoid dealing with zeroes
 train_r2_scores = -(train_r2_scores - mm)
 test_r2_scores = -(test_r2_scores - mm)
 
@@ -283,15 +268,19 @@ test_r2_scores = -(test_r2_scores - mm)
 # follow the gamma distribution.
 # We have seen that the gamma threshold gives a better scoring than
 # that of a normal distribution threshold.
-r2_threshold, r2_p = gamma_threshold(train_r2_scores,threshold)
+
+# We have observed that there is less overlap between the scores in r2
+# and can therefore push the threshold further without much loss
+r2_threshold, r2_p = gamma_threshold(train_r2_scores, 1-(1-threshold)/2)
 
 # Predict the test data wrt the r2 threshold
 r2_predictions = [1 if x > r2_threshold else 0 for x in test_r2_scores]
 
 # Plot the gamma distribution of best fit
-plot_gamma(train_r2_scores, r2_p, r2_threshold, "training r2 scores")
-plot_scores(test_r2_scores, test_Y, 'R2 scores',r2_threshold)
+#plot_gamma(train_r2_scores, r2_p, r2_threshold, "training r2 scores")
 
+#plot_scores(test_r2_scores, test_Y, 'R2 scores',r2_threshold)
+plot_report(train_r2_scores, test_r2_scores, test_Y, r2_p, r2_threshold, "R2")
 
 # R2 scoring does not take into account that the different axes
 # might have different variances. Since the model is trained
@@ -314,8 +303,16 @@ test_aell_scores, aell_threshold, aell_predictions, aell_p = ae_LL.predict(test_
 
 
 # Plot the gamma distribution of best fit
-plot_gamma( training_aell_scores, aell_p, aell_threshold, "training AE-LL scores" )
-plot_scores( test_aell_scores, test_Y, 'AE log-likelihood scores', aell_threshold )
+plot_report(
+        training_aell_scores, 
+        test_aell_scores, 
+        test_Y, 
+        aell_p, 
+        aell_threshold, 
+        title="Scoring by Log-Likelihood from AE-recreation-error",
+        xaxis="score (log scale)",
+        xscale="log"
+        )
 
 
 # Log-Likelihood is a statistical model we can use directly on the data as well,
@@ -326,12 +323,21 @@ plot_scores( test_aell_scores, test_Y, 'AE log-likelihood scores', aell_threshol
 direct_LL = LogLikelihood(train_X)
 
 # Score the data. 
-training_dll_scores = ae_LL.score(training_errors)
-test_dll_scores, dll_threshold, dll_predictions, dll_p = ae_LL.predict(test_X,threshold)
+training_dll_scores = direct_LL.score(test_X)
+test_dll_scores, dll_threshold, dll_predictions, dll_p = direct_LL.predict(test_X,threshold)
 
 # Plot the gamma distribution of best fit
-plot_gamma(training_dll_scores, dll_p, dll_threshold, "Direct Log Likelihood scores", 20)
-plot_scores( test_dll_scores, test_Y, 'direct log-likelihood scores)', dll_threshold )
+plot_report(
+        training_dll_scores, 
+        test_dll_scores, 
+        test_Y, 
+        dll_p, 
+        dll_threshold, 
+        title="Log-Likelihood scores on the raw data",
+        xaxis="score (log scale)",
+        xscale="log"
+        )
+
 
 # It seems r2 scoring performs better when we sample more data
 # The statistical model fitted from the training data, used to set a threshold,
@@ -351,8 +357,8 @@ print("AE-LL report:")
 print(confusion_matrix(test_Y, aell_predictions))
 print(classification_report(test_Y, aell_predictions))
 
-# Direct LL gives usable results, but are consistently worse than when applied
-# to the recreation error
+# Direct LL gives comparably good results as AE-LL
+# This means AE can be considered redundant
 print("direct-LL report:")
 print(confusion_matrix(test_Y, dll_predictions))
 print(classification_report(test_Y, dll_predictions))

@@ -4,6 +4,12 @@ import random
 import numpy as np
 
 
+# Prevalence of fraud: 492 : 284315
+# 576
+
+# 258,048 | 25,344
+# 0.1668347947544036626057267013269
+
 REAL_DATA_MAX_N: int = 284315
 FAKE_DATA_MAX_N: int = 492
 
@@ -15,7 +21,7 @@ def process_line(text: str) -> str:
 def process_lines(lines: list) -> list:
     return [[float(f) for f in process_line(line).split(",")] for line in lines]
 
-
+"""
 def split_training_data(data: list, anomalous_data: list, f: float = 0.5) -> tuple:
     k = int((1-f) * len(anomalous_data))
     
@@ -26,6 +32,29 @@ def split_training_data(data: list, anomalous_data: list, f: float = 0.5) -> tup
     random.shuffle(test_data)
     random.shuffle(training_data)
     return (*split_XY(training_data), *split_XY(test_data))
+"""
+
+def split_training_data(
+        inliers   : list, 
+        outliers  : list, 
+        f: float  = 0.5, 
+        train_size = 0.8
+        ) -> tuple:
+    
+    inlier_split_index = int((1-train_size)*len(inliers))
+    outlier_split_index = int((1-f)*len(outliers))
+    
+    random.shuffle(inliers)
+    
+    test_inliers, train_inliers   = sample_split(inliers, inlier_split_index)
+    test_outliers, train_outliers = sample_split(outliers, outlier_split_index)
+    
+    train_set = train_inliers + train_outliers
+    test_set = test_inliers + test_outliers
+    
+    random.shuffle(test_set)
+    random.shuffle(train_set)
+    return (*split_XY(train_set), *split_XY(test_set))
 
 
 def split_XY(data: list) -> tuple:
@@ -45,7 +74,11 @@ def sample_split(data: list, k: int) -> tuple:
     return tmp[:n], tmp[n:]
 
 
-def get_dataset(k1: int = 284315, k2: int = 492, f: float = 0.5):
+def get_dataset(
+        sample: int = 284315,
+        pollution: float = 0.5, 
+        train_size:float = 0.8
+        ):
     """
     Fetches the dataset and splits into training data and test data
     :param k1: the amount of entries to read from the real data
@@ -58,19 +91,18 @@ def get_dataset(k1: int = 284315, k2: int = 492, f: float = 0.5):
         preprocess_files()
         print("done!")
 
-    k1 = min(k1, REAL_DATA_MAX_N)
-    k2 = min(k2, FAKE_DATA_MAX_N)
+    sample = min(sample, REAL_DATA_MAX_N)
     anomalous_data, real_data = [], []
     with open("../data/real.csv", "r") as data_file:
         lines = data_file.readlines()[1:]
-        real_data = process_lines(random.sample(lines, k1))
+        real_data = process_lines(random.sample(lines, sample))
 
     with open("../data/fake.csv", "r") as data_file:
         lines = data_file.readlines()[1:]
         random.shuffle(lines)
-        anomalous_data = process_lines(random.sample(lines, k2))
+        anomalous_data = process_lines(lines)
 
-    return np.array(split_training_data(real_data, anomalous_data, f))
+    return np.array(split_training_data(real_data, anomalous_data, pollution, train_size))
 
 
 def preprocess_files():
