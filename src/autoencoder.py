@@ -2,7 +2,7 @@
 
 import pandas as pd
 import numpy as np
-from preprocessing import get_dataset, REAL_DATA_MAX_N
+from preprocessing import get_dataset
 from sklearn.neural_network import MLPRegressor
 import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report, confusion_matrix, r2_score
@@ -33,15 +33,14 @@ def identity(x):
 
 
 #Diagrams - Details unimportant
-def plot_latent(network, Xs, cols=None, alphas=None, labels = None):
-    latent = [encode(network[:3], X) for X in Xs]
+def plot_latent(latents, cols=None, alphas=None, labels = None):
     
     figure, ax = plt.subplots(figsize = (25,25))
     scatters = []
-    for i in range(len(latent)):
+    for i in range(len(latents)):
         a = alphas[i] if alphas else 0.25
         c = cols[i] if cols else None
-        s = ax.scatter(np.asarray(latent[i][:,0]),np.asarray(latent[i][:,1]), alpha=a, color=c)
+        s = ax.scatter(np.asarray(latents[i][:,0]),np.asarray(latents[i][:,1]), alpha=a, color=c)
         scatters.append(s)
     
     ax.legend(scatters, labels,scatterpoints=1, loc='lower left')
@@ -61,6 +60,7 @@ def encode(network, X):
 
 
 class LogLikelihood:
+    
     def __init__(self, X):
         X = np.asmatrix(X)
         self.X = X
@@ -72,6 +72,7 @@ class LogLikelihood:
         self.μs = [np.mean(X[:,i]) for i in range(self.n_axes)]
         # the standard deviation of each axis
         self.σ2s = [np.var(X[:,i]) for i in range(self.n_axes)]
+    
     
     def score(self, Y):
         Y = np.asarray(Y)
@@ -147,21 +148,32 @@ def plot_report(
     min_x = min(min(train_x), min(inliers), min(outliers))
     
     # Plot the training scores
-    bins = np.linspace(min_x, max_x, 150)
+    n_bins = 150
     if xscale == "log":
-        bins = np.logspace(np.log10(min_x),np.log10(max_x),len(bins))
-        
+        bins = np.logspace(np.log10(min_x),np.log10(max_x),n_bins)
+    else:
+        bins = np.linspace(min_x, max_x, n_bins)
     
     fig, ax = plt.subplots(figsize=(15,15))
     ax.hist(
-            x=(train_x, inliers), 
+            x=inliers, 
             bins=bins, 
             alpha=0.35,
-            color=("blue","yellow"), 
+            color="yellow", 
             histtype="barstacked",
             density=True, 
             stacked=True, 
-            label=("Training data","Inliers")
+            label="Inliers"
+            )
+    ax.hist(
+            x=train_x, 
+            bins=bins, 
+            alpha=0.35,
+            color="blue", 
+            histtype="barstacked",
+            density=True, 
+            stacked=True, 
+            label="Training data"
             )
     ax.hist(
             x=outliers, 
@@ -238,8 +250,18 @@ n_layers = len(auto_encoder.coefs_)
 activations = [np.tanh if activation =="tanh" else relu]*(n_layers-1)+[identity]
 network = list(zip(auto_encoder.coefs_, auto_encoder.intercepts_, activations))
 
+train_latent, test_latent = encode(network[:3], train_X), encode(network[:3], test_X)
+inlier_latent, outlier_latent = split_inliers_outliers(test_latent, test_Y)
+inlier_latent = np.asarray(inlier_latent)
+outlier_latent = np.asarray(outlier_latent)
+
 # Plot out the latent space (Pretty!)
-plot_latent(network, Xs=(train_X,inliers,outliers), alphas=(0.2,0.3,0.5), cols=("blue","yellow","black"), labels=("training data","inliers","outliers"))
+plot_latent(
+        [train_latent, inlier_latent, outlier_latent], 
+        alphas=(0.2,0.3,0.5), 
+        cols=["blue","yellow","black"], 
+        labels=["training data","inliers","outliers"]
+        )
 
 
 # Recreate the data from the auto encoder
@@ -249,14 +271,12 @@ test_recreations  = auto_encoder.predict( test_X  )
 
 # Score the samples with r2. This is the loss function used in the autoencoder.
 # This is done because sklearn auto encoder does not support per sample scoring
-#train_r2_scores = [r2_score( x_true, x_pred ) for x_true, x_pred in zip(train_X, train_recreations)]
 train_r2_scores = [r2_score( train_X[i], train_recreations[i] ) for i in range(len(train_X))]
 test_r2_scores = [r2_score( test_X[i], test_recreations[i] ) for i in range(len(test_X))]
-#test_r2_scores  = [r2_score( x_true, x_pred ) for x_true, x_pred in zip(test_X, test_recreations)]
 
 
 # Adjust the scores - Shift it so all the scores are positive
-mm = max(train_r2_scores) + 0e-4  # add a small value to avoid dealing with zeroes
+mm = max(train_r2_scores) + 0e-2  # add a small value to avoid dealing with zeroes
 train_r2_scores = -(train_r2_scores - mm)
 test_r2_scores = -(test_r2_scores - mm)
 
@@ -380,11 +400,3 @@ plt.show()
 plt.matshow(pd.DataFrame(training_errors).corr())
 plt.title("Correlation matrix: training errors")
 plt.show()
-
-
-
-"""    
-reduced_test_X = test_X[:,most_significant_axes]
-reduced_test_recreations = test_recreations[:,most_significant_axes]
-adjtest_r2_scores  = [r2_score( x_true, x_pred ) for x_true, x_pred in zip(reduced_test_X, reduced_test_recreations)]
-"""
