@@ -13,7 +13,7 @@ import sys
 
 """
 This file contains the various methods used by the various KNN model
-The methods of this file are all called form comparison.py using various flags
+The methods of this file are all called from comparison.py using various flags
 """
 
 
@@ -144,5 +144,6 @@ def knnGridSearch(X_train, Y_train, X_test, Y_test) -> list:
     gs = GridSearchCV(classifier, grid_params, verbose=1, cv=3, n_jobs=-1)
     gs.fit(X_train_nca, Y_train)
     print(gs.best_params_)
+    # Score the best found params using a confusion matrix
     Y_pred = gs.predict(X_test_nca)
     print(confusion_matrix(Y_test, Y_pred))
