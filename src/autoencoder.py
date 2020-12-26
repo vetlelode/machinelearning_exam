@@ -14,18 +14,19 @@ from scipy.stats import invgamma
 # Hyperparameters:
 train_size    = 0.8 #0-1
 pollution     = 0   #0-1
-undersampling = 0.5 #0-1, though should not be below 1-threshold
+
+undersampling = 100_000
 
 hidden_layers = [10,10,2,10,10]
 activation = "tanh" #or relu. Tanh works best (and gives the nicest graphs!)
 
 # The percentile above which we can consider everything an outlier.
 # Higher threshold means less false positives, but also less true negatives
-threshold = 0.9
+threshold = 0.99
 
 
 def relu(X):
-    return np.vectorize(lambda x: x if x>0 else 0)(X)
+    return np.vectorize(lambda x: max(0,x))(X)
 
 
 def identity(x):
@@ -118,6 +119,19 @@ class LogLikelihood:
         return scores, gamma_thresh, predictions, p
 
 
+class AutoEncoderOutlierPredictor:
+    def __init__(
+            train_X,
+            train_Y,
+            test_X,
+            test_Y,
+            hidden_layers: list = [20,10,2,10,10,20],
+            activation : str ="tanh",
+            threshold = 0.9
+            ):
+        pass
+
+
 def gamma_threshold(scores, threshold):
         # The density of values of the scores of the training data
         # follows the gamma distribution.
@@ -132,6 +146,7 @@ def gamma_threshold(scores, threshold):
         # gamma distribution, and the threshold
         a, loc, scale = invgamma.fit(scores)
         return invgamma.isf(1-threshold, a, loc, scale), (a, loc, scale)
+
 
 def plot_report(
         train_x, 
@@ -154,41 +169,36 @@ def plot_report(
     else:
         bins = np.linspace(min_x, max_x, n_bins)
     
-    fig, ax = plt.subplots(figsize=(15,15))
-    ax.hist(
-            x=inliers, 
-            bins=bins, 
-            alpha=0.35,
-            color="yellow", 
-            histtype="barstacked",
-            density=True, 
-            stacked=True, 
-            label="Inliers"
-            )
-    ax.hist(
-            x=train_x, 
-            bins=bins, 
-            alpha=0.35,
-            color="blue", 
-            histtype="barstacked",
-            density=True, 
-            stacked=True, 
-            label="Training data"
-            )
-    ax.hist(
-            x=outliers, 
-            bins=bins, 
-            alpha=0.35, 
-            color="black", 
-            density=True, 
-            stacked=True, 
-            label="Outliers"
-            )
-    min_ylim, max_ylim = plt.ylim()
-    ax.plot(bins, invgamma.pdf(bins, *p), label="Distribution curve of best fit")
-    ax.vlines(threshold, min_ylim, max_ylim, color="black", label="Threshold")
-    ax.legend(loc='upper left')
-    ax.set_xscale(xscale)
+    
+    fig = plt.figure(figsize=(15,15))
+    ax1 = fig.add_axes([0.0, 0.5, 0.8, 0.4])
+    ax2 = fig.add_axes([0.0, 0.1, 0.8, 0.4])
+    ax3 = ax2.twinx()
+    ax4 = ax1.twinx()
+    
+    histogram = lambda ax, X, color, density: ax.hist(
+        x=X, 
+        bins=bins, 
+        alpha=0.35,
+        color=color, 
+        histtype="barstacked",
+        density=density,
+        stacked=True,
+        label="Training data"
+        )
+    histogram( ax1, train_x,  "blue",   True  )
+    histogram( ax2, inliers,  "yellow", True  )
+    histogram( ax3, outliers, "black",  False )
+    
+    gamma = invgamma.pdf(bins, *p)
+    
+    ax4.set_ylim(0,max(gamma))
+    ax4.plot(bins, gamma)
+    [ax.set_xscale(xscale) for ax in (ax1,ax2,ax3,ax4)]
+    
+    miny, maxy = plt.ylim()
+    ax1.vlines(threshold, miny, maxy, color="black")
+    ax2.vlines(threshold, miny, maxy, color="black")
     plt.xlabel(xaxis)
     plt.ylabel("Density")
     plt.title(title)
@@ -207,11 +217,12 @@ def split_inliers_outliers(X,Y):
 
 
 # Obtain the dataset
-train_X, train_Y, test_X, test_Y = get_dataset(pollution=0, train_size=0.8)
+train_X, train_Y, test_X, test_Y = get_dataset(
+        sample     = undersampling, 
+        pollution  = 0, 
+        train_size = 0.8
+        )
 
-undersample_idx = int(undersampling * len(train_X))
-train_X = train_X[:undersample_idx]
-train_Y = train_Y[:undersample_idx]
 
 # Scale data to make training easier
 # -
@@ -234,7 +245,7 @@ auto_encoder = MLPRegressor(
     activation=activation, 
     hidden_layer_sizes = hidden_layers,
     warm_start=False, #Used in debugging
-    max_iter=50,
+    max_iter=100,
     verbose=True,
     tol=1e-7
     )
@@ -257,10 +268,10 @@ outlier_latent = np.asarray(outlier_latent)
 
 # Plot out the latent space (Pretty!)
 plot_latent(
-        [train_latent, inlier_latent, outlier_latent], 
+        (train_latent, inlier_latent, outlier_latent), 
         alphas=(0.2,0.3,0.5), 
-        cols=["blue","yellow","black"], 
-        labels=["training data","inliers","outliers"]
+        cols=("blue","yellow","black"), 
+        labels=("training data","inliers","outliers")
         )
 
 
@@ -287,7 +298,7 @@ test_r2_scores = -(test_r2_scores - mm)
 
 # We have observed that there is less overlap between the scores in r2
 # and can therefore push the threshold further without much loss
-r2_threshold, r2_p = gamma_threshold(train_r2_scores, 1-(1-threshold)/2)
+r2_threshold, r2_p = gamma_threshold(train_r2_scores, threshold)
 
 # Predict the test data wrt the r2 threshold
 r2_predictions = [1 if x > r2_threshold else 0 for x in test_r2_scores]
