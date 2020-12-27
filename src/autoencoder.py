@@ -140,7 +140,6 @@ class AutoEncoderOutlierPredictor:
         # Standardscaler works fairly well on its own.
         self.scaler = StandardScaler().fit(train_X)
         self.train_X = self.scaler.transform(train_X)
-        self.train_Y
         
         # The autoencoder is only being trained on inliers as to not learn to
         # recreate outliers explicitly
