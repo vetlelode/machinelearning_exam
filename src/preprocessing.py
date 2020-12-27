@@ -65,9 +65,9 @@ def get_dataset(
         ):
     """
     Fetches the dataset and splits into training data and test data
-    :param k1: the amount of entries to read from the real data
-    :param k2: the amount of entries to read from the anomalous data
-    :param f: how much of the anomalous data should be in the training data (0<=f<=1)
+    :param sample: how many items to sample
+    :param pollution: The proportion of the outliers to include in the training data
+    :param train_size: The proportion of inliers to include in the training data
     :return: training_data (X,Y), test_data (X, Y)
     """
     if files_absent():
