@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report, confusion_matrix, r2_score
 from sklearn.preprocessing import StandardScaler
 
+from sklearn.manifold import TSNE
+
 from scipy.stats import invgamma
 
 # Hyperparameters:
@@ -24,7 +26,7 @@ activation = "tanh" #or relu. Tanh works best (and gives the nicest graphs!)
 
 # R2 works best with a threshold of 0.9
 # LL works better with a threshold of 0.99
-threshold = 0.99
+threshold = 0.95
 
 
 def relu(X):
@@ -277,21 +279,21 @@ def gamma_threshold(scores, threshold, p=None):
 
 
 #Diagrams - Details unimportant
-def plot_latent(latents, cols=None, alphas=None, labels = None):
+def scatterplot(Xs, cols=None, alphas=None, labels = None,title=None):
     
     figure, ax = plt.subplots(figsize = (25,25))
     scatters = []
-    for i in range(len(latents)):
+    for i in range(len(Xs)):
         a = alphas[i] if alphas else 0.25
         c = cols[i] if cols else None
-        s = ax.scatter(np.asarray(latents[i][:,0]),np.asarray(latents[i][:,1]), alpha=a, color=c)
+        s = ax.scatter(np.asarray(Xs[i][:,0]),np.asarray(Xs[i][:,1]), alpha=a, color=c)
         scatters.append(s)
     
     ax.legend(scatters, labels,scatterpoints=1, loc='lower left')
-    plt.title('Latent Space', fontsize=15)
+    plt.title(title, fontsize=15)
     plt.xlabel('Z1', fontsize=10)
     plt.ylabel('Z2', fontsize=10)
-    plt.axis('equal')
+    #plt.axis('equal')
     plt.show()
 
 
@@ -385,8 +387,10 @@ train_X, train_Y, test_X, test_Y = get_dataset(
         )
 
 
+
 # Isolate inliers and outliers for graphing
 inliers, outliers = split_inliers_outliers(test_X,test_Y)
+
 
 # Set up the autoencoder
 AE = AutoEncoderOutlierPredictor(
@@ -402,11 +406,12 @@ AE.fit(train_X)
 train_latent, inlier_latent, outlier_latent = AE.forward_propogate(train_X, inliers, outliers, n_layers=3)
 
 # Plot out the latent space (Pretty!)
-plot_latent(
+scatterplot(
         (train_latent, inlier_latent, outlier_latent), 
         alphas=(0.2,0.3,0.5), 
         cols=("blue","yellow","black"), 
-        labels=("training data","inliers","outliers")
+        labels=("training data","inliers","outliers"),
+        title="Latent space"
         )
 
 # Score with R2, the loss function of the regressor
@@ -521,3 +526,28 @@ plt.show()
 plt.matshow(pd.DataFrame(train_X).corr())
 plt.title("Correlation matrix: training data")
 plt.show()
+
+
+# Visualize dataset with TSNE
+print("Visualizing dataset with TSNE")
+g = AE.scaler.transform(test_X)
+tsne = TSNE(
+        n_components=2,
+        verbose=2,
+        n_iter=500,
+        perplexity=10,
+        random_state=1,
+        learning_rate=200
+        ).fit_transform(g)
+
+inlier_tsne, outlier_tsne = split_inliers_outliers(tsne, test_Y)
+inlier_tsne = np.asarray(inlier_tsne)
+outlier_tsne = np.asarray(outlier_tsne)
+
+scatterplot(
+        (inlier_tsne, outlier_tsne), 
+        alphas=(0.3,0.5), 
+        cols=("yellow","black"), 
+        labels=("inliers","outliers"),
+        title="TSNE - 2 components"
+        )
