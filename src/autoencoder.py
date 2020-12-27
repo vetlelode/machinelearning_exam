@@ -10,7 +10,6 @@ from sklearn.preprocessing import StandardScaler
 
 from scipy.stats import invgamma
 
-
 # Hyperparameters:
 train_size    = 0.8 #0-1
 pollution     = 0   #0-1
@@ -31,25 +30,6 @@ def relu(X):
 
 def identity(x):
     return x
-
-
-#Diagrams - Details unimportant
-def plot_latent(latents, cols=None, alphas=None, labels = None):
-    
-    figure, ax = plt.subplots(figsize = (25,25))
-    scatters = []
-    for i in range(len(latents)):
-        a = alphas[i] if alphas else 0.25
-        c = cols[i] if cols else None
-        s = ax.scatter(np.asarray(latents[i][:,0]),np.asarray(latents[i][:,1]), alpha=a, color=c)
-        scatters.append(s)
-    
-    ax.legend(scatters, labels,scatterpoints=1, loc='lower left')
-    plt.title('Latent Space', fontsize=15)
-    plt.xlabel('Z1', fontsize=10)
-    plt.ylabel('Z2', fontsize=10)
-    plt.axis('equal')
-    plt.show()
 
 
 def encode(network, X):
@@ -73,8 +53,15 @@ class LogLikelihood:
         # the standard deviation of each axis
         self.σ2s = [np.var(X[:,i]) for i in range(self.n_axes)]
         self.train_scores = self.score(X)
+        
+        # Since the log-likelihood is the sum of squares,
+        # the probability distribution follows a chi2 distribution,
+        # which is a special case of the gamma distribution.
+        
+        # Calculate the describing parameters of the distribution
         self.p = invgamma.fit(self.train_scores)
         
+        # Calculate the threshold if one isn't provided
         if threshold is not None:
             self.set_threshold(threshold)
     
@@ -104,15 +91,13 @@ class LogLikelihood:
     
     
     def predict(self, xtest, threshold=None):
-        # Score the training data. These should have a low mean score
-        scores     = self.score(xtest)
-        
+        scores = self.score(xtest)
         return self.predict_from_scores(scores, threshold)
     
     def predict_from_scores(self, scores, threshold=None):
         if threshold is not None:
             self.set_threshold(threshold)
-        
+        # If score exceeds the threshold, it is identified as an outlier
         return [1 if x > self.threshold else 0 for x in scores]
     
     def set_threshold(self, threshold):
@@ -143,10 +128,20 @@ class AutoEncoderOutlierPredictor:
         self.threshold = threshold
     
     
-    def fit(self, train_X, train_Y):
+    def fit(self, train_X):
+        print("fitting data")
+        # Scale data to make training easier
+        # -
+        # We tried to normalize and scale, but that made it *too*
+        # easy to train, and we got extreme overfitting and the model
+        # would fit new inliers and outliers equaly poorly.
+        # A way to avoid overfitting would be to introduce noise to the training data
+        # per epoch, but sklearn does not support this.
+        # Standardscaler works fairly well on its own.
         self.scaler = StandardScaler().fit(train_X)
         self.train_X = self.scaler.transform(train_X)
-        self.train_Y = train_Y
+        self.train_Y
+        
         # The autoencoder is only being trained on inliers as to not learn to
         # recreate outliers explicitly
         if self.verbose:
@@ -158,44 +153,97 @@ class AutoEncoderOutlierPredictor:
         # R2
         if self.verbose:
             print("Scoring r2 data")
+        
+        # Score the training data with r2, which is the loss function used in
+        # the auto encoder. Outliers should present worse scoring in the loss
+        # function, as the auto encoder has never been trained on them
         train_r2_scores = self._score_r2(self.train_X, self.train_recreation)
+        
+        # Adjust the scoring to be positive
         mm = max(train_r2_scores) + 0e-2  # add a small value to avoid dealing with zeroes
         self.r2_transform = lambda scores: -(scores-mm)
         self.train_r2_scores = self.r2_transform(train_r2_scores)
-        self.r2_threshold, self.r2_p = gamma_threshold(self.train_r2_scores, self.threshold)
+        # The r2 scores may not follow a gamma distribution entirely,
+        # but in our experience, it follows it well enough to give us
+        # decent results, and we will continue to assume it is
+        # following a gamma distribution
         
-        #LL
+        # No significant portion of outliers present themselves on
+        # the lower end of the distribution, so it is reasonable
+        # to set the threshold on only one side of the curve
+        self.r2_threshold, self.r2_p = gamma_threshold(self.train_r2_scores, self.threshold)
+        # p is the describing parameters of the gamma curve
+        
+        # Log-Likelihood
+        if self.verbose:
+            print("scoring log-likelihood data")
+        
+        # R2 performs reasonably, but the difference between inliers
+        # and outliers is small. Some axes have higher variance than others
+        # in the training data, and those axes will have a bigger effect
+        # on the score than the axes with lower variance. Since the model
+        # has not been trained on any outliers, it is reasonable to assume
+        # the variances on their axes will be different.
+        # In order to detect outliers, the variances of each axis should be
+        # taken into account. Log likelihood is a method to give a statistical
+        # score of how likely a n-dimensional data point is to be found
+        # at that specific point. It is assuming each axes has a normal 
+        # distribution, and that the likelihood of that specific point
+        # is the product of the likelihoods of each axis. The log likelihood
+        # is just the logarithm of that likelihood.
+        # This is useful as instead of taking the product - which may lead
+        # to rounding errors - we take the sum. The constant factors can also
+        # be dropped for a decently fast scoring.
+        
+        # We are assuming that each axis follows more or less a normal
+        # distribution, and therefore the sum of its squares will be
+        # chi2 distributed (with ~30 degrees of freedom).
+        # Since not all axes are normally distributed, we instead
+        # assume the log-likelihood follows the more generalized gamma 
+        # distribution
         train_recreation_errors = self.train_X-self.train_recreation
         self.LL = LogLikelihood(train_recreation_errors, self.threshold)
         
+        print("Fit complete")
+        
     
     def forward_propogate(self, *datas, n_layers : int):
+        # Scale data to the same space as the training data
         datas = [self.scaler.transform(data) for data in datas]
+        
+        # populate the network with activation functions
         activations = [np.tanh if self.activation =="tanh" else relu]*(self.layers)+[identity]
         network = list(zip(self.auto_encoder.coefs_, self.auto_encoder.intercepts_, activations))
+        
+        # Encode n layers of the network
         return [encode(network[:n_layers], data) for data in datas]
     
     
     def _score_r2(self, data, recreated_data):
-        # Score the samples with r2. This is the loss function used in the autoencoder.
-        # This is done because sklearn auto encoder does not support per sample scoring
+        # Score the samples with r2. This is the loss function used in the 
+        # autoencoder. This is done because sklearn auto encoder does not 
+        # support per sample scoring
         return [r2_score( data[i], recreated_data[i] ) for i in range(len(data))]
     
     
     def score_r2(self, data):
+        # Scale data to the same space as the training data
         data = self.scaler.transform(data)
         # Score the samples with r2. This is the loss function used in the autoencoder.
-        # This is done because sklearn auto encoder does not support per sample scoring
         scores = self._score_r2(data, self.auto_encoder.predict(data))
+        # Transform the scores such that most of it is positive
         return self.r2_transform(scores)
     
     def predict_r2(self, data):
+        # Scale data to the same space as the training data
         data = self.scaler.transform(data)
+        # Score the samples with r2. This is the loss function used in the autoencoder.
         scores = self.score_r2(data)
         return self.predict_r2_from_scores(scores)
     
     
     def predict_r2_from_scores(self, scores):
+        # If scores exceed the threshold, it is identified as an outlier
         return [1 if x > self.r2_threshold else 0 for x in scores]
     
     
@@ -216,12 +264,9 @@ class AutoEncoderOutlierPredictor:
 def gamma_threshold(scores, threshold, p=None):
         # The density of values of the scores of the training data
         # follows the gamma distribution.
-        # A sharp spike of likelihood followed by a sharp decline that 
-        # smoothens out slowly.
-        
-        # In other words, it does not follow a normal distribution,
-        # and as such, a more sohpisticated method to find the apropriate
-        # threshold is warranted.
+        # This is what we would expect from the sum of stochastich
+        # variables squared, which is what the scoring functions
+        # are.
         
         # Calculate the describing parameters of the training data 
         # gamma distribution, and the threshold
@@ -231,6 +276,26 @@ def gamma_threshold(scores, threshold, p=None):
         return invgamma.isf(1-threshold, a, loc, scale), (a, loc, scale)
 
 
+#Diagrams - Details unimportant
+def plot_latent(latents, cols=None, alphas=None, labels = None):
+    
+    figure, ax = plt.subplots(figsize = (25,25))
+    scatters = []
+    for i in range(len(latents)):
+        a = alphas[i] if alphas else 0.25
+        c = cols[i] if cols else None
+        s = ax.scatter(np.asarray(latents[i][:,0]),np.asarray(latents[i][:,1]), alpha=a, color=c)
+        scatters.append(s)
+    
+    ax.legend(scatters, labels,scatterpoints=1, loc='lower left')
+    plt.title('Latent Space', fontsize=15)
+    plt.xlabel('Z1', fontsize=10)
+    plt.ylabel('Z2', fontsize=10)
+    plt.axis('equal')
+    plt.show()
+
+
+# Plotting. Details unimportant
 def plot_report(
         train_x, 
         inliers, 
@@ -241,9 +306,10 @@ def plot_report(
         xscale="linear",
         xaxis="score"):
     
-    max_x = max(max(train_x), max(inliers), max(outliers))
-    max_x = min(max_x, 8*np.std(outliers))
-    min_x = min(min(train_x), min(inliers), min(outliers))
+    X = (train_x, inliers, outliers)
+    max_x = max(np.vectorize(max)(X))
+    min_x = min(np.vectorize(min)(X))
+    
     
     # Plot the training scores
     n_bins = 150
@@ -259,7 +325,7 @@ def plot_report(
     ax3 = ax2.twinx()
     ax4 = ax1.twinx()
     
-    histogram = lambda ax, X, color, density: ax.hist(
+    histogram = lambda ax, X, color, density, label: ax.hist(
         x=X, 
         bins=bins, 
         alpha=0.35,
@@ -267,25 +333,35 @@ def plot_report(
         histtype="barstacked",
         density=density,
         stacked=True,
-        label="Training data"
+        label=label
         )
-    histogram( ax1, train_x,  "blue",   True  )
-    histogram( ax2, inliers,  "yellow", True  )
-    histogram( ax3, outliers, "black",  False )
+    histogram( ax1, train_x,  "blue",   True , "training data")
+    histogram( ax2, inliers,  "yellow", True , "inliers" )
+    histogram( ax3, outliers, "black",  False, "outliers" )
     
     gamma = invgamma.pdf(bins, *p)
     
+    # A lot of hacky stuff here
+    
+    # this curve is a bit bugged, adjusting the height fixes it
     ax4.set_ylim(0,max(gamma))
     ax4.plot(bins, gamma)
+    
     [ax.set_xscale(xscale) for ax in (ax1,ax2,ax3,ax4)]
     
+    # Ignore this, the library is being obstinate
     miny, maxy = plt.ylim()
     ax1.vlines(threshold, miny, maxy, color="black")
     ax2.vlines(threshold, miny, maxy, color="black")
+    ax1.legend( ("training data","threshold"), loc="upper right")
+    ax2.legend( ("inliers", "threshold"), loc="upper right")
+    ax4.legend( ["Gamma curve of best fit"], loc="center right")
+    ax3.legend( ["outliers"], loc="center right")
     plt.xlabel(xaxis)
     plt.ylabel("Density")
     plt.title(title)
     plt.show()
+
 
 def split_inliers_outliers(X,Y):
     inliers, outliers = [], []
@@ -300,33 +376,29 @@ def split_inliers_outliers(X,Y):
 
 
 # Obtain the dataset
-train_X, train_Y, test_X, test_Y = get_dataset(
-        sample     = undersampling, 
-        pollution  = 0, 
-        train_size = 0.8
-        )
-# Scale data to make training easier
-# -
-# We tried to normalize and scale, but that made it *too*
-# easy to train, and we got extreme overfitting and the model
-# would fit new inliers and outliers equaly poorly.
-# A way to avoid overfitting would be to introduce noise to the training data
-# per epoch, but sklearn does not support this.
-# Standardscaler works fairly well on its own.
-#scaler = StandardScaler().fit(train_X)
-#train_X = scaler.transform(train_X)
-#test_X = scaler.transform(test_X)
 
+train_X, train_Y, test_X, test_Y = get_dataset(
+        sample     = undersampling,
+        # Not training the encoder on any outliers gives the best results
+        pollution  = 0, # How much of the outliers to put in the training set
+        train_size = 0.8 # How much of the inliers to put in the training set
+        )
+
+
+# Isolate inliers and outliers for graphing
 inliers, outliers = split_inliers_outliers(test_X,test_Y)
 
+# Set up the autoencoder
 AE = AutoEncoderOutlierPredictor(
-        hidden_layers = [20,10,2,10,10,20],
-        activation ="tanh",
+        hidden_layers = hidden_layers,
+        activation = activation,
         threshold = threshold
         )
 
-AE.fit(train_X, train_Y)
+# Fit to training data, this will take a while
+AE.fit(train_X)
 
+# Forward propogate to the latent space
 train_latent, inlier_latent, outlier_latent = AE.forward_propogate(train_X, inliers, outliers, n_layers=3)
 
 # Plot out the latent space (Pretty!)
@@ -337,13 +409,12 @@ plot_latent(
         labels=("training data","inliers","outliers")
         )
 
-
-# Recreate the data from the auto encoder
-
+# Score with R2, the loss function of the regressor
 r2_scores = AE.score_r2(test_X)
+# Predict its class from the score
 r2_pred = AE.predict_r2_from_scores(r2_scores)
 
-#plot_scores(test_r2_scores, test_Y, 'R2 scores',r2_threshold)
+# Plotting
 plot_report(
         AE.train_r2_scores, 
         *split_inliers_outliers(r2_scores,test_Y), 
@@ -358,12 +429,12 @@ plot_report(
 # axes of the outliers have low variance, and therefore R2 will
 # not pick up on that.
 
-# Take the error between the original data and its recreation
-
+# Score based on the log-likelihood of the recreation errors
 aell_scores = AE.score_ll(test_X)
+# Predict its class from the score
 aell_pred = AE.predict_ll_from_scores(aell_scores)
 
-# Plot the gamma distribution of best fit
+# Plotting
 plot_report(
         AE.LL.train_scores, 
         *split_inliers_outliers(aell_scores,test_Y),
@@ -379,14 +450,14 @@ plot_report(
 # And we need to check if the Log-Likelihood performs as well, worse or better
 # on the recreation error than on the raw data.
 # If it performs as well or better, the AE is a redundant step.
-
 direct_LL = LogLikelihood(train_X, threshold)
 
 # Score the data. 
 dll_scores = direct_LL.score(test_X)
+# Predict its class from the score
 dll_pred = direct_LL.predict_from_scores(dll_scores)
 
-# Plot the gamma distribution of best fit
+# Plotting
 plot_report(
         direct_LL.train_scores, 
         *split_inliers_outliers(dll_scores,test_Y),
@@ -401,23 +472,36 @@ plot_report(
 # It seems r2 scoring performs better when we sample more data
 # The statistical model fitted from the training data, used to set a threshold,
 # is not too good of a fit and produces more false negatives than we would
-# like
+# like.
+
+# R2 has a narrower gap between outliers and inliers, and a lot more overlap.
+# This leads to more uncertain detection, even for more extreme outliers.
+# Considering that different scores could be used differently in an operational
+# environment, such as blocking all transactions above a certain threshold,
+# while scores under that one but above another be put to manual
+# inspection, we would like to minimize this gap where manual
+# inspection is needed.
 print("r2 report:")
 print(confusion_matrix(test_Y, r2_pred))
 print(classification_report(test_Y, r2_pred))
 
-# But AE-LL has stable performance, even when undersampling
-
-# It seems the statistical model fitted on the training set
-# is also a good fit for the testing data. There are about the
-# same proportion of true false positives to true positives as
-# false negatives to true negatives
+# AE-LL has stable performance, even when undersampling
+# Log-Likelihood of the reconstruction errors provide better and more
+# certain classifications. The overlapping section between outliers and inliers
+# is noticeably narrowed, as outliers have more extreme scores.
+# This is the better option with respect to the operational.
 print("AE-LL report:")
 print(confusion_matrix(test_Y, aell_pred))
 print(classification_report(test_Y, aell_pred))
 
-# Direct LL gives comparably good results as AE-LL
-# This means AE can be considered redundant wrt Log-Likelihood
+# Log-likelihood of the raw data gives comparable results
+# to the auto-encoder recreation error log likelihood.
+# This is probably because the inliers of the raw data
+# are pretty evenly distributed, having low correlation,
+# while the outliers have a significant correlation.
+# This shows that a standard statistical model could be used
+# for satisfactory results, as no advanced non-linear model
+# is needed.
 print("direct-LL report:")
 print(confusion_matrix(test_Y, dll_pred))
 print(classification_report(test_Y, dll_pred))
