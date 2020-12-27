@@ -13,13 +13,13 @@ from sklearn.manifold import TSNE
 from scipy.stats import invgamma
 
 # Hyperparameters:
-train_size    = 0.8 #0-1
-pollution     = 0   #0-1
+train_size    = 0.8  # 0-1
+pollution     = 0    # 0-1
 
 undersampling = 100_000
 
-hidden_layers = [10,10,2,10,10]
-activation = "tanh" #or relu. Tanh works best (and gives the nicest graphs!)
+hidden_layers = [10, 10, 2, 10, 10]
+activation = "tanh"  # or relu. Tanh works best (and gives the nicest graphs!)
 
 # The percentile above which we can consider everything an outlier.
 # Higher threshold means less inliers detected as outliers,
@@ -33,7 +33,7 @@ threshold = 0.95
 
 
 def relu(X):
-    return np.vectorize(lambda x: max(0,x))(X)
+    return np.vectorize(lambda x: max(0, x))(X)
 
 
 def identity(x):
@@ -72,8 +72,7 @@ class LogLikelihood:
         # Calculate the threshold if one isn't provided
         if threshold is not None:
             self.set_threshold(threshold)
-    
-    
+
     def score(self, Y):
         Y = np.asarray(Y)
         # The PDF of the normal distribution is
@@ -90,25 +89,21 @@ class LogLikelihood:
         # ln(f(x))+ln(sqrt(2 π) σ)=-(x - μ)^2/(2 σ^2)
         # -2(ln(f(x))+ln(sqrt(2 π) σ)) = (x - μ)^2 / (σ^2)
         # g(x) = -ln(f(x)^2 2 π σ^2)
-        
-        
+
         # We can then sum the log-likelihood of each axis
         # as that is isomorphic to taking the product of the likelihood
         return sum([(Y.T[i]-self.μs[i])**2 / self.σ2s[i] for i in range(self.n_axes)])
-    
-    
+
     def predict(self, xtest, threshold=None):
         scores = self.score(xtest)
         return self.predict_from_scores(scores, threshold)
-    
-    
+
     def predict_from_scores(self, scores, threshold=None):
         if threshold is not None:
             self.set_threshold(threshold)
         # If score exceeds the threshold, it is identified as an outlier
         return [1 if x > self.threshold else 0 for x in scores]
-    
-    
+
     def set_threshold(self, threshold):
         self.threshold, _ = gamma_threshold(self.train_scores, threshold, p=self.p)
 
@@ -116,8 +111,8 @@ class LogLikelihood:
 class AutoEncoderOutlierPredictor:
     def __init__(
             self,
-            hidden_layers: list = [20,10,2,10,10,20],
-            activation : str ="tanh",
+            hidden_layers: list = [20, 10, 2, 10, 10, 20],
+            activation : str = "tanh",
             threshold = 0.9,
             verbose=True,
             max_iter=50
@@ -125,8 +120,8 @@ class AutoEncoderOutlierPredictor:
         self.auto_encoder = MLPRegressor(
             solver="adam",
             activation=activation, 
-            hidden_layer_sizes = hidden_layers,
-            warm_start=False, #Used in debugging
+            hidden_layer_sizes=hidden_layers,
+            warm_start=False,  # Used in debugging
             max_iter=max_iter,
             verbose=verbose,
             tol=1e-7
@@ -135,8 +130,7 @@ class AutoEncoderOutlierPredictor:
         self.layers = len(hidden_layers)
         self.activation = activation
         self.threshold = threshold
-    
-    
+
     def fit(self, train_X):
         print("fitting data")
         # Scale data to make training easier
@@ -211,8 +205,7 @@ class AutoEncoderOutlierPredictor:
         self.LL = LogLikelihood(train_recreation_errors, self.threshold)
         
         print("Fit complete")
-        
-    
+
     def forward_propogate(self, *datas, n_layers : int):
         # Scale data to the same space as the training data
         datas = [self.scaler.transform(data) for data in datas]
@@ -223,15 +216,13 @@ class AutoEncoderOutlierPredictor:
         
         # Encode n layers of the network
         return [encode(network[:n_layers], data) for data in datas]
-    
-    
+
     def _score_r2(self, data, recreated_data):
         # Score the samples with r2. This is the loss function used in the 
         # autoencoder. This is done because sklearn auto encoder does not 
         # support per sample scoring
         return [r2_score( data[i], recreated_data[i] ) for i in range(len(data))]
-    
-    
+
     def score_r2(self, data):
         # Scale data to the same space as the training data
         data = self.scaler.transform(data)
@@ -246,46 +237,42 @@ class AutoEncoderOutlierPredictor:
         # Score the samples with r2. This is the loss function used in the autoencoder.
         scores = self.score_r2(data)
         return self.predict_r2_from_scores(scores)
-    
-    
+
     def predict_r2_from_scores(self, scores):
         # If scores exceed the threshold, it is identified as an outlier
         return [1 if x > self.r2_threshold else 0 for x in scores]
-    
-    
+
     def score_ll(self, data):
         data = self.scaler.transform(data)
         return self.LL.score(data)
     
-    
     def predict_ll(self, data):
         data = self.scaler.transform(data)
         return self.LL.predict(data)
-    
-    
+
     def predict_ll_from_scores(self, scores):
         return self.LL.predict_from_scores(scores)
 
 
 def gamma_threshold(scores, threshold, p=None):
-        # The density of values of the scores of the training data
-        # follows the gamma distribution.
-        # This is what we would expect from the sum of stochastich
-        # variables squared, which is what the scoring functions
-        # are.
-        
-        # Calculate the describing parameters of the training data 
-        # gamma distribution, and the threshold
-        if p is None:
-            p = invgamma.fit(scores)
-        a, loc, scale = p
-        return invgamma.isf(1-threshold, a, loc, scale), (a, loc, scale)
+    # The density of values of the scores of the training data
+    # follows the gamma distribution.
+    # This is what we would expect from the sum of stochastich
+    # variables squared, which is what the scoring functions
+    # are.
+
+    # Calculate the describing parameters of the training data
+    # gamma distribution, and the threshold
+    if p is None:
+        p = invgamma.fit(scores)
+    a, loc, scale = p
+    return invgamma.isf(1-threshold, a, loc, scale), (a, loc, scale)
 
 
-#Diagrams - Details unimportant
-def scatterplot(Xs, cols=None, alphas=None, labels = None,title=None):
+# Diagrams - Details unimportant
+def scatterplot(Xs, cols=None, alphas=None, labels=None, title=None):
     
-    figure, ax = plt.subplots(figsize = (25,25))
+    figure, ax = plt.subplots(figsize=(25, 25))
     scatters = []
     for i in range(len(Xs)):
         a = alphas[i] if alphas else 0.25
@@ -293,11 +280,10 @@ def scatterplot(Xs, cols=None, alphas=None, labels = None,title=None):
         s = ax.scatter(np.asarray(Xs[i][:,0]),np.asarray(Xs[i][:,1]), alpha=a, color=c)
         scatters.append(s)
     
-    ax.legend(scatters, labels,scatterpoints=1, loc='lower left')
+    ax.legend(scatters, labels, scatterpoints=1, loc='lower left')
     plt.title(title, fontsize=15)
     plt.xlabel('Z1', fontsize=10)
     plt.ylabel('Z2', fontsize=10)
-    #plt.axis('equal')
     plt.show()
 
 
@@ -316,16 +302,14 @@ def plot_report(
     max_x = max(np.vectorize(max)(X))
     min_x = min(np.vectorize(min)(X))
     
-    
     # Plot the training scores
     n_bins = 150
     if xscale == "log":
         bins = np.logspace(np.log10(min_x),np.log10(max_x),n_bins)
     else:
         bins = np.linspace(min_x, max_x, n_bins)
-    
-    
-    fig = plt.figure(figsize=(15,15))
+
+    fig = plt.figure(figsize=(15, 15))
     ax1 = fig.add_axes([0.0, 0.5, 0.8, 0.4])
     ax2 = fig.add_axes([0.0, 0.1, 0.8, 0.4])
     ax3 = ax2.twinx()
@@ -341,38 +325,38 @@ def plot_report(
         stacked=True,
         label=label
         )
-    histogram( ax1, train_x,  "blue",   True , "training data")
-    histogram( ax2, inliers,  "yellow", True , "inliers" )
-    histogram( ax3, outliers, "black",  False, "outliers" )
+    histogram(ax1, train_x,  "blue",   True,  "training data")
+    histogram(ax2, inliers,  "yellow", True,  "inliers")
+    histogram(ax3, outliers, "black",  False, "outliers")
     
     gamma = invgamma.pdf(bins, *p)
     
     # A lot of hacky stuff here
     
     # this curve is a bit bugged, adjusting the height fixes it
-    ax4.set_ylim(0,max(gamma))
+    ax4.set_ylim(0, max(gamma))
     ax4.plot(bins, gamma)
     
-    [ax.set_xscale(xscale) for ax in (ax1,ax2,ax3,ax4)]
+    [ax.set_xscale(xscale) for ax in (ax1, ax2, ax3, ax4)]
     
     # Ignore this, the library is being obstinate
     miny, maxy = plt.ylim()
     ax1.vlines(threshold, miny, maxy, color="black")
     ax2.vlines(threshold, miny, maxy, color="black")
-    ax1.legend( ("training data","threshold"), loc="upper right")
-    ax2.legend( ("inliers", "threshold"), loc="upper right")
-    ax4.legend( ["Gamma curve of best fit"], loc="center right")
-    ax3.legend( ["outliers"], loc="center right")
+    ax1.legend(("training data","threshold"), loc="upper right")
+    ax2.legend(("inliers", "threshold"), loc="upper right")
+    ax4.legend(["Gamma curve of best fit"], loc="center right")
+    ax3.legend(["outliers"], loc="center right")
     plt.xlabel(xaxis)
     plt.ylabel("Density")
     plt.title(title)
     plt.show()
 
 
-def split_inliers_outliers(X,Y):
+def split_inliers_outliers(X, Y):
     inliers, outliers = [], []
     for i in range(len(X)):
-        if Y[i]==0:
+        if Y[i] == 0:
             inliers.append(X[i])
         else:
             outliers.append(X[i])
@@ -384,23 +368,21 @@ def split_inliers_outliers(X,Y):
 # Obtain the dataset
 
 train_X, train_Y, test_X, test_Y = get_dataset(
-        sample     = undersampling,
+        sample=undersampling,
         # Not training the encoder on any outliers gives the best results
-        pollution  = 0, # How much of the outliers to put in the training set
-        train_size = 0.8 # How much of the inliers to put in the training set
+        pollution=0,  # How much of the outliers to put in the training set
+        train_size=0.8  # How much of the inliers to put in the training set
         )
 
-
-
 # Isolate inliers and outliers for graphing
-inliers, outliers = split_inliers_outliers(test_X,test_Y)
+inliers, outliers = split_inliers_outliers(test_X, test_Y)
 
 
 # Set up the autoencoder
 AE = AutoEncoderOutlierPredictor(
-        hidden_layers = hidden_layers,
-        activation = activation,
-        threshold = threshold
+        hidden_layers=hidden_layers,
+        activation=activation,
+        threshold=threshold
         )
 
 # Fit to training data, this will take a while
@@ -412,9 +394,9 @@ train_latent, inlier_latent, outlier_latent = AE.forward_propogate(train_X, inli
 # Plot out the latent space (Pretty!)
 scatterplot(
         (train_latent, inlier_latent, outlier_latent), 
-        alphas=(0.2,0.3,0.5), 
-        cols=("blue","yellow","black"), 
-        labels=("training data","inliers","outliers"),
+        alphas=(0.2, 0.3, 0.5),
+        cols=("blue", "yellow", "black"),
+        labels=("training data", "inliers", "outliers"),
         title="Latent space"
         )
 
@@ -426,7 +408,7 @@ r2_pred = AE.predict_r2_from_scores(r2_scores)
 # Plotting
 plot_report(
         AE.train_r2_scores, 
-        *split_inliers_outliers(r2_scores,test_Y), 
+        *split_inliers_outliers(r2_scores, test_Y),
         AE.r2_p, 
         AE.r2_threshold, 
         "R2"
@@ -555,8 +537,8 @@ outlier_tsne = np.asarray(outlier_tsne)
 # that the difference between inliers and outliers is not trivial.
 scatterplot(
         (inlier_tsne, outlier_tsne), 
-        alphas=(0.3,0.5), 
-        cols=("yellow","black"), 
-        labels=("inliers","outliers"),
+        alphas=(0.3, 0.5),
+        cols=("yellow", "black"),
+        labels=("inliers", "outliers"),
         title="TSNE - 2 components"
         )
