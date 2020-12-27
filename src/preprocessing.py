@@ -5,10 +5,6 @@ import numpy as np
 
 
 # Prevalence of fraud: 492 : 284315
-# 576
-
-# 258,048 | 25,344
-# 0.1668347947544036626057267013269
 
 REAL_DATA_MAX_N: int = 284315
 FAKE_DATA_MAX_N: int = 492
@@ -19,20 +15,8 @@ def process_line(text: str) -> str:
 
 
 def process_lines(lines: list) -> list:
-    return [[float(f) for f in process_line(line).split(",")] for line in lines]
+    return np.asarray([[float(f) for f in process_line(line).split(",")] for line in lines])
 
-"""
-def split_training_data(data: list, anomalous_data: list, f: float = 0.5) -> tuple:
-    k = int((1-f) * len(anomalous_data))
-    
-    test_rdata, training_rdata = sample_split(data, k)
-    test_adata, training_adata = sample_split(anomalous_data, k)
-    test_data = test_adata + test_rdata
-    training_data = training_adata + training_rdata
-    random.shuffle(test_data)
-    random.shuffle(training_data)
-    return (*split_XY(training_data), *split_XY(test_data))
-"""
 
 def split_training_data(
         inliers   : list, 
@@ -96,14 +80,20 @@ def get_dataset(
     with open("../data/real.csv", "r") as data_file:
         lines = data_file.readlines()[1:]
         real_data = process_lines(random.sample(lines, sample))
+        real_data = clean_data(real_data)
 
     with open("../data/fake.csv", "r") as data_file:
         lines = data_file.readlines()[1:]
         random.shuffle(lines)
         anomalous_data = process_lines(lines)
-
+        anomalous_data = clean_data(anomalous_data)
     return np.array(split_training_data(real_data, anomalous_data, pollution, train_size))
 
+def clean_data(data):
+    # Second to last column is of exponential order
+    # Cleaning this up by taking the logarithm improves the results slightly
+    data[:,-2]=np.log(np.add(data[:,-2],1e-8))
+    return data
 
 def preprocess_files():
     with open("../data/creditcard.csv", "r") as data_file:
