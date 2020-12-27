@@ -21,6 +21,9 @@ activation = "tanh" #or relu. Tanh works best (and gives the nicest graphs!)
 
 # The percentile above which we can consider everything an outlier.
 # Higher threshold means less false positives, but also less true negatives
+
+# R2 works best with a threshold of 0.9
+# LL works better with a threshold of 0.99
 threshold = 0.99
 
 
@@ -143,8 +146,6 @@ class AutoEncoderOutlierPredictor:
         
         # The autoencoder is only being trained on inliers as to not learn to
         # recreate outliers explicitly
-        if self.verbose:
-            print("Fitting data")
         self.auto_encoder.fit(self.train_X, self.train_X)
         self.train_recreation = self.auto_encoder.predict(self.train_X)
         
@@ -159,7 +160,7 @@ class AutoEncoderOutlierPredictor:
         train_r2_scores = self._score_r2(self.train_X, self.train_recreation)
         
         # Adjust the scoring to be positive
-        mm = max(train_r2_scores) + 0e-2  # add a small value to avoid dealing with zeroes
+        mm = max(train_r2_scores) + 1e-7  # add a small value to avoid dealing with zeroes
         self.r2_transform = lambda scores: -(scores-mm)
         self.train_r2_scores = self.r2_transform(train_r2_scores)
         # The r2 scores may not follow a gamma distribution entirely,
