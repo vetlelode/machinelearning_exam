@@ -22,10 +22,13 @@ hidden_layers = [10,10,2,10,10]
 activation = "tanh" #or relu. Tanh works best (and gives the nicest graphs!)
 
 # The percentile above which we can consider everything an outlier.
-# Higher threshold means less false positives, but also less true negatives
+# Higher threshold means less inliers detected as outliers,
+# but more outliers detected as inliers.
 
-# R2 works best with a threshold of 0.9
-# LL works better with a threshold of 0.99
+# Higher thresholds for R2 only lead to worse results as
+# the threshold is pushed past the peak of the outliers
+
+# Higher thresholds for LL lead to more operationally useful results.
 threshold = 0.95
 
 
@@ -78,8 +81,7 @@ class LogLikelihood:
         # Which is isomorphic to
         # (x - μ)^2 / (σ^2)
         # the exact probabilities are not important to the scoring,
-        # only that two scores in one distribution have the same
-        # relationship as in the other R(f(a),f(b)) <=> R(g(a),g(b))
+        # only that the order of scores are the same.
         
         # f(x)=e^(-(x - μ)^2/(2 σ^2))/(sqrt(2 π) σ)
         # g(x)=(x - μ)^2 / (σ^2)
@@ -99,11 +101,13 @@ class LogLikelihood:
         scores = self.score(xtest)
         return self.predict_from_scores(scores, threshold)
     
+    
     def predict_from_scores(self, scores, threshold=None):
         if threshold is not None:
             self.set_threshold(threshold)
         # If score exceeds the threshold, it is identified as an outlier
         return [1 if x > self.threshold else 0 for x in scores]
+    
     
     def set_threshold(self, threshold):
         self.threshold, _ = gamma_threshold(self.train_scores, threshold, p=self.p)
@@ -544,6 +548,11 @@ inlier_tsne, outlier_tsne = split_inliers_outliers(tsne, test_Y)
 inlier_tsne = np.asarray(inlier_tsne)
 outlier_tsne = np.asarray(outlier_tsne)
 
+# TSNE is unsupervised, and clusters most of the outliers in the
+# same cluster, indicating that outliers have distinguishing features.
+
+# Some outliers cluster together with inliers, indicating
+# that the difference between inliers and outliers is not trivial.
 scatterplot(
         (inlier_tsne, outlier_tsne), 
         alphas=(0.3,0.5), 
