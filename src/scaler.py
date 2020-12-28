@@ -30,17 +30,19 @@ class StandardScaler:
             # S
             self.scaler_vars[i, 1] = np.std(column, ddof=0)**2
 
+    def trans(self, val, col):
+        return (val-self.scaler_vars[col, 0])/self.scaler_vars[col, 1]
+
     def transform(self, X):
         """
         Transform the provided dataset X using the earlier fit
         """
-        print(self.scaler_vars[1])
         X = np.array(X)
         X_new = np.empty(X.shape)
-        for i in range(len(X)):
-            for j in range(len(X[0])):
-                X_new[i, j] = (
-                    X[i, j]-self.scaler_vars[j][0])/self.scaler_vars[j][1]
+        for i in range(len(X[0])):
+            for j in range(len(X[:, i])):
+                X[j, i] -= self.scaler_vars[i, 0]
+                X[j, i] /= self.scaler_vars[i, 1]
         return X
 
     def fit_transform(self, X):
@@ -85,5 +87,10 @@ if __name__ == "__main__":
         elif (round(scaler.scaler_vars[i][1], 4) != round(skaler.var_[i], 4)):
             failed = True
             print(scaler.scaler_vars[i][1], skaler.var_[i])
+    # If there are no major deviations from the SKlearn scaler print a happy message
     if failed == False:
         print("Sucess the two scalers are more or less the same!")
+    for i in range(len(X_train_0[0])):
+        if(X_train_0[0][i] != X_train_1[0][i]):
+            failed = True
+            print(X_train_0[0][i], X_train_1[0][i])
