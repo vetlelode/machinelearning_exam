@@ -7,16 +7,15 @@ from sklearn.neural_network import MLPRegressor
 import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report, confusion_matrix, r2_score
 from sklearn.preprocessing import StandardScaler
-
+from stat_tools import gamma_threshold, LogLikelihood, split_inliers_outliers
 from sklearn.manifold import TSNE
-
-from scipy.stats import invgamma
+from plotting import plot_report, scatterplot
 
 # Hyperparameters:
 train_size    = 0.8  # 0-1
 pollution     = 0    # 0-1
 
-undersampling = 100_000
+undersampling = 10_000
 
 hidden_layers = [10, 10, 2, 10, 10]
 activation = "tanh"  # or relu. Tanh works best (and gives the nicest graphs!)
@@ -46,66 +45,6 @@ def encode(network, X):
         # sum the weights and then add the bias
         z = activation( np.add(np.matmul(z, weight), bias ) )
     return np.asarray(z)
-
-
-class LogLikelihood:
-    
-    def __init__(self, X, threshold=None):
-        X = np.asmatrix(X)
-        self.n_axes = X.shape[1]
-        # Create a n-dimensional normal distribution:
-        
-        # log likelihood parameters
-        # the mean of each axis
-        self.μs = [np.mean(X[:,i]) for i in range(self.n_axes)]
-        # the standard deviation of each axis
-        self.σ2s = [np.var(X[:,i]) for i in range(self.n_axes)]
-        self.train_scores = self.score(X)
-        
-        # Since the log-likelihood is the sum of squares,
-        # the probability distribution follows a chi2 distribution,
-        # which is a special case of the gamma distribution.
-        
-        # Calculate the describing parameters of the distribution
-        self.p = invgamma.fit(self.train_scores)
-        
-        # Calculate the threshold if one isn't provided
-        if threshold is not None:
-            self.set_threshold(threshold)
-
-    def score(self, Y):
-        Y = np.asarray(Y)
-        # The PDF of the normal distribution is
-        # e^(-(x - μ)^2/(2 σ^2))/(sqrt(2 π) σ)
-        # Which is isomorphic to
-        # (x - μ)^2 / (σ^2)
-        # the exact probabilities are not important to the scoring,
-        # only that the order of scores are the same.
-        
-        # f(x)=e^(-(x - μ)^2/(2 σ^2))/(sqrt(2 π) σ)
-        # g(x)=(x - μ)^2 / (σ^2)
-        
-        # ln(f(x))=-(x - μ)^2/(2 σ^2)-ln(sqrt(2 π) σ)
-        # ln(f(x))+ln(sqrt(2 π) σ)=-(x - μ)^2/(2 σ^2)
-        # -2(ln(f(x))+ln(sqrt(2 π) σ)) = (x - μ)^2 / (σ^2)
-        # g(x) = -ln(f(x)^2 2 π σ^2)
-
-        # We can then sum the log-likelihood of each axis
-        # as that is isomorphic to taking the product of the likelihood
-        return sum([(Y.T[i]-self.μs[i])**2 / self.σ2s[i] for i in range(self.n_axes)])
-
-    def predict(self, xtest, threshold=None):
-        scores = self.score(xtest)
-        return self.predict_from_scores(scores, threshold)
-
-    def predict_from_scores(self, scores, threshold=None):
-        if threshold is not None:
-            self.set_threshold(threshold)
-        # If score exceeds the threshold, it is identified as an outlier
-        return [1 if x > self.threshold else 0 for x in scores]
-
-    def set_threshold(self, threshold):
-        self.threshold, _ = gamma_threshold(self.train_scores, threshold, p=self.p)
 
 
 class AutoEncoderOutlierPredictor:
@@ -254,113 +193,9 @@ class AutoEncoderOutlierPredictor:
         return self.LL.predict_from_scores(scores)
 
 
-def gamma_threshold(scores, threshold, p=None):
-    # The density of values of the scores of the training data
-    # follows the gamma distribution.
-    # This is what we would expect from the sum of stochastich
-    # variables squared, which is what the scoring functions
-    # are.
-
-    # Calculate the describing parameters of the training data
-    # gamma distribution, and the threshold
-    if p is None:
-        p = invgamma.fit(scores)
-    a, loc, scale = p
-    return invgamma.isf(1-threshold, a, loc, scale), (a, loc, scale)
-
-
 # Diagrams - Details unimportant
-def scatterplot(Xs, cols=None, alphas=None, labels=None, title=None):
-    
-    figure, ax = plt.subplots(figsize=(25, 25))
-    scatters = []
-    for i in range(len(Xs)):
-        a = alphas[i] if alphas else 0.25
-        c = cols[i] if cols else None
-        s = ax.scatter(np.asarray(Xs[i][:,0]),np.asarray(Xs[i][:,1]), alpha=a, color=c)
-        scatters.append(s)
-    
-    ax.legend(scatters, labels, scatterpoints=1, loc='lower left', fontsize=35)
-    plt.title(title, fontsize=45)
-    plt.xlabel('Z1', fontsize=30)
-    plt.ylabel('Z2', fontsize=30)
-    plt.show()
 
 
-# Plotting. Details unimportant
-def plot_report(
-        train_x, 
-        inliers, 
-        outliers, 
-        p, 
-        threshold, 
-        title=None,
-        xscale="linear",
-        xaxis="score"):
-    
-    X = (train_x, inliers, outliers)
-    max_x = max(np.vectorize(max)(X))
-    min_x = min(np.vectorize(min)(X))
-    
-    # Plot the training scores
-    n_bins = 150
-    if xscale == "log":
-        bins = np.logspace(np.log10(min_x),np.log10(max_x),n_bins)
-    else:
-        bins = np.linspace(min_x, max_x, n_bins)
-
-    fig = plt.figure(figsize=(15, 15))
-    ax1 = fig.add_axes([0.0, 0.5, 0.8, 0.4])
-    ax2 = fig.add_axes([0.0, 0.1, 0.8, 0.4])
-    ax3 = ax2.twinx()
-    ax4 = ax1.twinx()
-    
-    histogram = lambda ax, X, color, density, label: ax.hist(
-        x=X, 
-        bins=bins, 
-        alpha=0.35,
-        color=color, 
-        histtype="barstacked",
-        density=density,
-        stacked=True,
-        label=label
-        )
-    histogram(ax1, train_x,  "blue",   True,  "training data")
-    histogram(ax2, inliers,  "yellow", True,  "inliers")
-    histogram(ax3, outliers, "black",  False, "outliers")
-    
-    gamma = invgamma.pdf(bins, *p)
-    
-    # A lot of hacky stuff here
-    
-    # this curve is a bit bugged, adjusting the height fixes it
-    ax4.set_ylim(0, max(gamma))
-    ax4.plot(bins, gamma)
-    
-    [ax.set_xscale(xscale) for ax in (ax1, ax2, ax3, ax4)]
-    
-    # Ignore this, the library is being obstinate
-    miny, maxy = plt.ylim()
-    ax1.vlines(threshold, miny, maxy, color="black")
-    ax2.vlines(threshold, miny, maxy, color="black")
-    ax1.legend(("training data","threshold"), loc="upper right")
-    ax2.legend(("inliers", "threshold"), loc="upper right")
-    ax4.legend(["Gamma curve of best fit"], loc="center right")
-    ax3.legend(["outliers"], loc="center right")
-    plt.xlabel(xaxis)
-    plt.ylabel("Density")
-    plt.title(title)
-    plt.show()
-
-
-def split_inliers_outliers(X, Y):
-    inliers, outliers = [], []
-    for i in range(len(X)):
-        if Y[i] == 0:
-            inliers.append(X[i])
-        else:
-            outliers.append(X[i])
-    return inliers, outliers
 
 # MAIN PROGRAM
 
