@@ -30,9 +30,6 @@ class StandardScaler:
             # S
             self.scaler_vars[i, 1] = np.std(column, ddof=0)**2
 
-    def trans(self, val, col):
-        return (val-self.scaler_vars[col, 0])/self.scaler_vars[col, 1]
-
     def transform(self, X):
         """
         Transform the provided dataset X using the earlier fit
@@ -45,7 +42,7 @@ class StandardScaler:
 
         return X
 
-    def fit_transform(self, X):
+    def fit_transform(self, X, y=None):
         """
         QOL method combines both the
         fit and transform functions into one
@@ -99,3 +96,8 @@ if __name__ == "__main__":
     # If there are no major deviations from the SKlearn scaler print a happy message
     if failed == False:
         print("Huzzah, the two scalers are more or less the same!")
+
+    # Since we are using the scaler in a pipeline make sure it works
+    pipe = make_pipeline(StandardScaler())
+    pipe.fit_transform(X_train)
+    pipe.transform(X_test)
