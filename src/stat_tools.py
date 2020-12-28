@@ -16,7 +16,7 @@ def split_inliers_outliers(X, Y):
             inliers.append(X[i])
         else:
             outliers.append(X[i])
-    return inliers, outliers
+    return np.asarray(inliers), np.asarray(outliers)
 
 def gamma_threshold(scores, threshold, p=None):
     # The density of values of the scores of the training data
