@@ -280,10 +280,10 @@ def scatterplot(Xs, cols=None, alphas=None, labels=None, title=None):
         s = ax.scatter(np.asarray(Xs[i][:,0]),np.asarray(Xs[i][:,1]), alpha=a, color=c)
         scatters.append(s)
     
-    ax.legend(scatters, labels, scatterpoints=1, loc='lower left')
-    plt.title(title, fontsize=15)
-    plt.xlabel('Z1', fontsize=10)
-    plt.ylabel('Z2', fontsize=10)
+    ax.legend(scatters, labels, scatterpoints=1, loc='lower left', fontsize=35)
+    plt.title(title, fontsize=45)
+    plt.xlabel('Z1', fontsize=30)
+    plt.ylabel('Z2', fontsize=30)
     plt.show()
 
 
@@ -441,6 +441,8 @@ plot_report(
 # And we need to check if the Log-Likelihood performs as well, worse or better
 # on the recreation error than on the raw data.
 # If it performs as well or better, the AE is a redundant step.
+
+# Scaling the data leads to the same results as not scaling it.
 direct_LL = LogLikelihood(train_X, threshold)
 
 # Score the data. 
