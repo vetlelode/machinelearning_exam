@@ -14,7 +14,7 @@ from stat_tools import gamma_threshold, split_inliers_outliers
 from plotting import plot_report
 
 k = 10
-undersampling = 1_000
+undersampling = 10_000 #values above 10 000 takes too long to be useful
 train_size = 0.8
 n_components = 5
 pollution = 0.1
@@ -28,7 +28,7 @@ class KNN:
             train_X, 
             train_Y, 
             n_components=5, 
-            weights=None, # must be above 1
+            weights=[1,1], # must be above 1
             threshold=0.9
             ):
         self.pipeline = make_pipeline(
@@ -36,7 +36,7 @@ class KNN:
                 PCA(n_components=n_components)
                 ).fit(train_X)
         self.train_X = np.asarray(train_X)
-        self.train_Y = np.asarray(train_Y)
+        self.train_Y = np.asarray(train_Y).astype(int)
         self.k = k
         self.weights = weights
         self.train_scores = list(self.outlier_score(self.train_X))
@@ -60,20 +60,29 @@ class KNN:
         for x in self.kth_nearest(X):
             yield x[0]
     
-    def os_classify(self, X):
+    def os_classify(self, X): # unsupervised
         for x in self.outlier_score(X):
             yield 1 if x > self.threshold else 0
     
-    def classify(self, X):
+    def classify(self, X, weighted=True): # supervised
+        
+        # re-evaluate the distance based off of class weight and distance
+        # high weight should lead to higher score
+        # low distance should lead to higher score
+        weighted_distance = lambda dist, index: self.weights[self.train_Y[index]]/(dist+1)
+        
         for x in self.k_nearest(X):
-            ys = np.asarray(x)[:,1]
-            classes = self.train_Y[ys.astype(int)]
-            counts = np.bincount(classes.astype(int))
-            if self.weights is None:
-                yield np.argmax(counts)
+            
+            if weighted:
+                cl = np.asarray([(weighted_distance(dist, index), self.train_Y[index]) for dist, index in x])
+                # yield the class of the neighbour with the highest score
+                yield cl[np.argmax(cl[:,0])][1]
             else:
-                weighted_counts = [counts[i]*self.weights[i] for i in range(len(counts))]
-                yield np.argmax(weighted_counts)
+                ys = x[:,1]
+                classes = self.train_Y[ys]
+                counts = np.bincount(classes)
+                # yield the mode class of the neighbours
+                yield np.argmax(counts)
 
 
 train_X, train_Y, test_X, test_Y = get_dataset(
