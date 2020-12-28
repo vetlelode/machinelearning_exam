@@ -12,13 +12,17 @@ from sklearn.pipeline import make_pipeline
 from sklearn.metrics import classification_report, confusion_matrix
 from stat_tools import gamma_threshold, split_inliers_outliers
 from plotting import plot_report
+import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap
 
+
+# Hyperparameters
 k = 10
-undersampling = 5_000 #values above 10 000 takes too long to be useful
-train_size = 0.5
-n_components = 5
+undersampling = 4_000 #values above 10 000 takes too long to be useful
+train_size = 0.5 # KNN works well when undersampling the training data
+n_components = 5 # Graphing works poorly for components=2
 pollution = 0.1
-weights = [1,40]
+weights = [1,50] # Outliers are weighted higher than inliers
 threshold = 0.9
 
 class KNN:
@@ -46,13 +50,13 @@ class KNN:
         
     
     
-    def distances(self, X):
+    def distances(self, X, transform=True):
         # Transform training data and test data.
         # This will normalize the data such that the variance
         # per axes is made similar.
-        X = self.pipeline.transform(X)
+        if transform:
+            X = self.pipeline.transform(X)
         TX = self.pipeline.transform(self.train_X)
-        
         # Calculate the distances between a point in the test data
         # to all the points in hte training data.
         # We are not taking the square root, as we only care about the
@@ -70,24 +74,24 @@ class KNN:
         for x in self.distances(X):
             yield x[:self.k]
     
-    def kth_nearest(self, X):
+    def kth_nearest(self, X, transform=True):
         # Yield the kth neighbour
-        for x in self.distances(X):
+        for x in self.distances(X, transform):
             yield x[self.k]
     
-    def outlier_score(self, X):
+    def outlier_score(self, X, transform=True):
         # Yield the score of the kth neightbour.
         # Set a lower bound so that the logarithm does not
         # tend to infinity, as we plot the data on a logarithmic 
         # scale on the x axis.
-        for x in self.kth_nearest(X):
+        for x in self.kth_nearest(X, transform):
             yield max(x[0],1e-2)
     
     
-    def os_classify(self, X): # unsupervised
+    def os_classify(self, X, transform=True): # unsupervised
         # Classify test data that has a distance score
         # above the threshold as outliers
-        for x in self.outlier_score(X):
+        for x in self.outlier_score(X,transform):
             yield 1 if x > self.threshold else 0
     
     def classify(self, X, weighted=True): # supervised
@@ -104,7 +108,7 @@ class KNN:
                 # yield the class of the neighbour with the highest score
                 yield cl[np.argmax(cl[:,0])][1]
             else:
-                ys = x[:,1]
+                ys = np.asarray(x)[:,1].astype(int)
                 classes = self.train_Y[ys]
                 counts = np.bincount(classes)
                 # yield the mode class of the neighbours
@@ -135,19 +139,55 @@ knn = KNN(
         threshold=0.9
         )
 print("predicting outliers based on knn classes")
-knn_pred_Y = list(progress_report(knn.classify(test_X),len(test_X)))
+#knn_pred_Y = list(progress_report(knn.classify(test_X),len(test_X)))
 
 print("predicting outliers based on knn outliers scores")
 test_knn_outlier_scores = list(progress_report(knn.outlier_score(test_X),len(test_X)))
 
-inliers, outliers = split_inliers_outliers(test_knn_outlier_scores, test_Y)
+inlier_scores, outlier_scores = split_inliers_outliers(test_knn_outlier_scores, test_Y)
+inliers, outliers = split_inliers_outliers(test_X, test_Y)
+
 
 knn_os_pred_Y = [1 if score > knn.threshold else 0 for score in test_knn_outlier_scores]
 
-print(confusion_matrix(test_Y, knn_pred_Y))
-print(classification_report(test_Y, knn_pred_Y))
+#print(confusion_matrix(test_Y, knn_pred_Y))
+#print(classification_report(test_Y, knn_pred_Y))
 
 print(confusion_matrix(test_Y, knn_os_pred_Y))
 print(classification_report(test_Y, knn_os_pred_Y))
 
-plot_report(knn.train_scores, inliers, outliers, knn.p, knn.threshold, xscale="log", title="KNN outlier scores")
+plot_report(knn.train_scores, inlier_scores, outlier_scores, knn.p, knn.threshold, xscale="log", title="KNN outlier scores")
+
+
+if n_components == 2:
+    # https://stackoverflow.com/questions/45075638/graph-k-nn-decision-boundaries-in-matplotlib
+    h = 0.1
+    X = knn.pipeline.transform(knn.train_X)
+    x_min, y_min = -5, -5
+    x_max, y_max = 5, 5
+    
+    xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
+                         np.arange(y_min, y_max, h))
+    
+    Z = list(knn.os_classify(np.c_[xx.ravel(), yy.ravel()], transform=False))
+    Z = np.asarray(Z)
+    Z = Z.reshape(xx.shape)
+    
+    
+    transformed_test_X = knn.pipeline.transform(test_X)
+    tinliers, toutliers = split_inliers_outliers(transformed_test_X, test_Y)
+   
+    cmap_light = ListedColormap(['#FFFFAA', '#DDAAFF'])
+    plt.figure(figsize=(25,25))
+    plt.pcolormesh(xx, yy, Z, cmap=cmap_light)
+    
+    # Plot also the training points
+    plt.scatter(tinliers[:, 0], tinliers[:, 1], color="#AAAA00")
+    plt.scatter(toutliers[:, 0], toutliers[:, 1], color="purple")
+    plt.xlim(xx.min(), xx.max())
+    plt.ylim(yy.min(), yy.max())
+    plt.xlabel('Z1', fontsize=30)
+    plt.ylabel('Z2', fontsize=30)
+    plt.legend(("inliers", "outliers"), loc="upper right", fontsize=30)
+    plt.title("Decission boundary for KNN outlier scoring (pca=2)", fontsize=45)
+    plt.show()
