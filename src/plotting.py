@@ -40,6 +40,7 @@ def plot_report(
     X = (train_x, inliers, outliers)
     max_x = max(np.vectorize(max)(X))
     min_x = min(np.vectorize(min)(X))
+    min_x = max(min_x, 1e-2)
     
     # Plot the training scores
     n_bins = 150
