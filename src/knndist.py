@@ -14,8 +14,8 @@ from stat_tools import gamma_threshold, split_inliers_outliers
 from plotting import plot_report
 
 k = 10
-undersampling = 10_000 #values above 10 000 takes too long to be useful
-train_size = 0.8
+undersampling = 5_000 #values above 10 000 takes too long to be useful
+train_size = 0.5
 n_components = 5
 pollution = 0.1
 weights = [1,40]
@@ -39,28 +39,54 @@ class KNN:
         self.train_Y = np.asarray(train_Y).astype(int)
         self.k = k
         self.weights = weights
-        self.train_scores = list(self.outlier_score(self.train_X))
+        
+        self.train_scores = list(progress_report(self.outlier_score(self.train_X), len(self.train_X)))
+        
         self.threshold, self.p = gamma_threshold(self.train_scores, threshold)
+        
     
-    def distances(self, X, transform=True):
+    
+    def distances(self, X):
+        # Transform training data and test data.
+        # This will normalize the data such that the variance
+        # per axes is made similar.
         X = self.pipeline.transform(X)
         TX = self.pipeline.transform(self.train_X)
+        
+        # Calculate the distances between a point in the test data
+        # to all the points in hte training data.
+        # We are not taking the square root, as we only care about the
+        # ordering, and not the specific distances.
+        
+        # Yield the result per data point in the test data
+        # to lower the load on the memory.
+        # This allows for bigger datasets without running out of memory
+        # as the more effective matrix multiplication method would allow.
         for x in X:
             yield sorted([(np.sum((x-TX[i])**2), i) for i in range(len(TX))])
-    
-    def k_nearest(self, X, transform=True):
-        for x in self.distances(X, transform):
+
+    def k_nearest(self, X):
+        # Yield the k nearest neighbours
+        for x in self.distances(X):
             yield x[:self.k]
     
     def kth_nearest(self, X):
+        # Yield the kth neighbour
         for x in self.distances(X):
             yield x[self.k]
     
     def outlier_score(self, X):
+        # Yield the score of the kth neightbour.
+        # Set a lower bound so that the logarithm does not
+        # tend to infinity, as we plot the data on a logarithmic 
+        # scale on the x axis.
         for x in self.kth_nearest(X):
-            yield x[0]
+            yield max(x[0],1e-2)
+    
     
     def os_classify(self, X): # unsupervised
+        # Classify test data that has a distance score
+        # above the threshold as outliers
         for x in self.outlier_score(X):
             yield 1 if x > self.threshold else 0
     
@@ -85,6 +111,14 @@ class KNN:
                 yield np.argmax(counts)
 
 
+def progress_report( stream, length, increments = 10):
+    count = 0
+    for x in stream:
+        count +=1
+        if count % (length//increments)==0:
+            print(f"{round((count/length)*100)}%")
+        yield x
+
 train_X, train_Y, test_X, test_Y = get_dataset(
         sample=undersampling,
         # Not training the encoder on any outliers gives the best results
@@ -92,10 +126,19 @@ train_X, train_Y, test_X, test_Y = get_dataset(
         train_size=train_size  # How much of the inliers to put in the training set
         )
 
-knn = KNN(k, train_X, train_Y, n_components, weights=weights)
-knn_pred_Y = list(knn.classify(test_X))
+knn = KNN(
+        k, 
+        train_X, 
+        train_Y, 
+        n_components, 
+        weights=weights,
+        threshold=0.9
+        )
+print("predicting outliers based on knn classes")
+knn_pred_Y = list(progress_report(knn.classify(test_X),len(test_X)))
 
-test_knn_outlier_scores = list(knn.outlier_score(test_X))
+print("predicting outliers based on knn outliers cores")
+test_knn_outlier_scores = list(progress_report(knn.outlier_score(test_X),len(test_X)))
 
 inliers, outliers = split_inliers_outliers(test_knn_outlier_scores, test_Y)
 
