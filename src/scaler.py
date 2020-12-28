@@ -9,7 +9,7 @@ class StandardScaler:
     """
     Our implementation of an Sklearn style scaler
     Scales the dataset using the formula:
-    z = (x - u) / s^2
+    z = (x - u) / s
     where x is the original sample, u is the mean value of the column,
     and s is the standard deviation of the column
     """
@@ -39,10 +39,10 @@ class StandardScaler:
         """
         X = np.array(X)
         X_new = np.empty(X.shape)
-        for i in range(len(X[0])):
-            for j in range(len(X[:, i])):
-                X[j, i] -= self.scaler_vars[i, 0]
-                X[j, i] /= self.scaler_vars[i, 1]
+        #z = (x - u) / s
+        X -= self.scaler_vars[:, 0]
+        X /= np.sqrt(self.scaler_vars[:, 1])
+
         return X
 
     def fit_transform(self, X):
@@ -60,7 +60,7 @@ class StandardScaler:
 
 if __name__ == "__main__":
     """
-    Essentially just debugging code used to test the scaler versus the Sklearn one
+    This is just testing code to make sure the scaler gives the same results as the SKlearn one 
     """
     X_train, Y_train, X_test, Y_test = get_dataset(
         sample=1000, pollution=0.7, train_size=0.9)
@@ -87,10 +87,15 @@ if __name__ == "__main__":
         elif (round(scaler.scaler_vars[i][1], 4) != round(skaler.var_[i], 4)):
             failed = True
             print(scaler.scaler_vars[i][1], skaler.var_[i])
-    # If there are no major deviations from the SKlearn scaler print a happy message
-    if failed == False:
-        print("Sucess the two scalers are more or less the same!")
+
     for i in range(len(X_train_0[0])):
-        if(X_train_0[0][i] != X_train_1[0][i]):
+        if(round(X_train_0[0][i], 4) != round(X_train_1[0][i], 4)):
             failed = True
             print(X_train_0[0][i], X_train_1[0][i])
+        if(round(X_test_0[0][i], 4) != round(X_test_1[0][i], 4)):
+            failed = True
+            print(X_test_0[0][i], X_test_1[0][i])
+
+    # If there are no major deviations from the SKlearn scaler print a happy message
+    if failed == False:
+        print("Huzzah, the two scalers are more or less the same!")
