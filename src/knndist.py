@@ -5,7 +5,7 @@ Created on Sun Dec 27 23:06:41 2020
 @author: Ask
 """
 from preprocessing import get_dataset
-from sklearn.preprocessing import StandardScaler
+from scaler import StandardScaler
 import numpy as np
 from sklearn.decomposition import PCA
 from sklearn.pipeline import make_pipeline
@@ -137,7 +137,7 @@ knn = KNN(
 print("predicting outliers based on knn classes")
 knn_pred_Y = list(progress_report(knn.classify(test_X),len(test_X)))
 
-print("predicting outliers based on knn outliers cores")
+print("predicting outliers based on knn outliers scores")
 test_knn_outlier_scores = list(progress_report(knn.outlier_score(test_X),len(test_X)))
 
 inliers, outliers = split_inliers_outliers(test_knn_outlier_scores, test_Y)
@@ -149,4 +149,5 @@ print(classification_report(test_Y, knn_pred_Y))
 
 print(confusion_matrix(test_Y, knn_os_pred_Y))
 print(classification_report(test_Y, knn_os_pred_Y))
-plot_report(knn.train_scores, inliers, outliers, knn.p, knn.threshold, xscale="log")
+
+plot_report(knn.train_scores, inliers, outliers, knn.p, knn.threshold, xscale="log", title="KNN outlier scores")
