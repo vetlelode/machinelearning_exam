@@ -3,7 +3,7 @@ import sys
 import numpy as np
 import pandas as pd
 from preprocessing import get_dataset
-from knn import runKNN, knnGridSearch, knn_NCA, dim_reduc
+from knn import runKNN, knnGridSearch, knn_NCA, dim_reduc, knn_PCA
 import seaborn as sn
 import matplotlib.pyplot as plt
 
@@ -18,14 +18,14 @@ def runComp():
     """
     Run the KNN algorithm on the dataset with the provided flags
     """
-    k=3
-    X_train, Y_train, X_test, Y_test = get_dataset(sample=50000,pollution=0.7,train_size=0.8)
+    k = 1  # k= 1 gives the best results
+    X_train, Y_train, X_test, Y_test = get_dataset(
+        sample=50000, pollution=0.7, train_size=0.8)
     cols = ["Time", "V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "V10", "V11", "V12", "V13", "V14", "V15",
             "V16", "V17", "V18", "V19", "V20", "V21", "V22", "V23", "V24", "V25", "V26", "V27", "V28", "Amount"]
     X_train = pd.DataFrame(X_train, columns=cols)
     X_test = pd.DataFrame(X_test, columns=cols)
-    # X_train.drop(columns="Time")
-    # X_test.drop(columns="Time")
+
     Y_pred = runKNN(X_train, Y_train, X_test, k)
     # Print out the confusion matrix since its more relevant than the overall accuracy
     cf_knn = confusion_matrix(Y_test, Y_pred)

@@ -25,12 +25,6 @@ def runKNN(X_train, Y_train, X_test, K=1) -> list:
     scaler = StandardScaler()
     X_train = scaler.fit_transform(X_train)
     X_test = scaler.transform(X_test)
-    X = np.concatenate([X_train, X_test])
-
-    x_min, x_max = X[:, 0].min() - 1, X[:, 0].max() + 1
-    y_min, y_max = X[:, 1].min() - 1, X[:, 1].max() + 1
-   # xx, yy = np.meshgrid(np.arange(x_min, x_max, h),
-    #                    np.arange(y_min, y_max, h))
 
     classifier = KNeighborsClassifier(n_neighbors=K)
     classifier.fit(X_train, Y_train)
@@ -43,6 +37,8 @@ def knn_NCA(X_train, Y_train, X_test, K=1) -> list:
     Reduce the dimensionalty of the dataset using the NCA method
     This is slower than using PCA or not using anything at all,
     but yields better results for now
+
+    If the dataset sample is too large this takes really long to run
     """
     # Scale all the output using a standard scaler
     scaler = StandardScaler()
@@ -67,6 +63,25 @@ def knn_NCA(X_train, Y_train, X_test, K=1) -> list:
     clf.fit(X_train_nca, Y_train)
     # Return the predicted results
     return clf.predict(X_test_nca)
+
+
+def knn_PCA(X_train, Y_train, X_test, K=1) -> list:
+    """
+    Although PCA peforms worse in most cases from our testing it is useful due to being much faster than NCA
+    """
+    # Scale all the output using a standard scaler
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.transform(X_test)
+    pca = PCA(2)
+    pca.fit_transform(X_train)
+    pca.fit_transform(X_test)
+    X_train = pd.DataFrame(X_train)
+    X_test = pd.DataFrame(X_test)
+    classifier = KNeighborsClassifier(n_neighbors=K)
+    classifier.fit(X_train, Y_train)
+    # Return the predicted results
+    return classifier.predict(X_test)
 
 
 def dim_reduc(X_train, Y_train, X_test, Y_test, K=1) -> None:
