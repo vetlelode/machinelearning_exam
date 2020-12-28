@@ -18,8 +18,8 @@ from matplotlib.colors import ListedColormap
 
 # Hyperparameters
 k = 10
-undersampling = 4_000 #values above 10 000 takes too long to be useful
-train_size = 0.5 # KNN works well when undersampling the training data
+undersampling = 10_000 #values above 10 000 takes too long to be useful
+train_size = 0.6 # KNN works well when undersampling the training data
 n_components = 5 # Graphing works poorly for components=2
 pollution = 0.1
 weights = [1,50] # Outliers are weighted higher than inliers
@@ -139,7 +139,7 @@ knn = KNN(
         threshold=0.9
         )
 print("predicting outliers based on knn classes")
-#knn_pred_Y = list(progress_report(knn.classify(test_X),len(test_X)))
+knn_pred_Y = list(progress_report(knn.classify(test_X),len(test_X)))
 
 print("predicting outliers based on knn outliers scores")
 test_knn_outlier_scores = list(progress_report(knn.outlier_score(test_X),len(test_X)))
@@ -150,8 +150,8 @@ inliers, outliers = split_inliers_outliers(test_X, test_Y)
 
 knn_os_pred_Y = [1 if score > knn.threshold else 0 for score in test_knn_outlier_scores]
 
-#print(confusion_matrix(test_Y, knn_pred_Y))
-#print(classification_report(test_Y, knn_pred_Y))
+print(confusion_matrix(test_Y, knn_pred_Y))
+print(classification_report(test_Y, knn_pred_Y))
 
 print(confusion_matrix(test_Y, knn_os_pred_Y))
 print(classification_report(test_Y, knn_os_pred_Y))
