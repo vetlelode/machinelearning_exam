@@ -51,13 +51,7 @@ def knn_NCA(X_train, Y_train, X_test, K=1) -> list:
 
     X_train_nca = pd.DataFrame(X_train_nca)
     X_test_nca = pd.DataFrame(X_test_nca)
-    # Plot out the result of the dimensionalty reduction from NCA
-    plt.scatter(X_train_nca[:, 0], X_train_nca[:, 1],
-                c=Y_train, s=30, cmap='Set1')
-    plt.title('Scatter plot')
-    plt.xlabel('x')
-    plt.ylabel('y')
-    plt.show()
+
     # Classify using a KNN classifier
     clf = KNeighborsClassifier(n_neighbors=K, leaf_size=2)
     clf.fit(X_train_nca, Y_train)
@@ -132,7 +126,7 @@ def dim_reduc(X_train, Y_train, X_test, Y_test, K=1) -> None:
         plt.scatter(X_embedded[:, 0], X_embedded[:, 1],
                     c=Y, s=30, cmap='Set1',)
         plt.title("KNN with {}\np={}".format(name, round(acc_knn, 3)))
-        plt.savefig("../figures/KNN_{}.png".format(name))
+        plt.savefig("figs/KNN_{}.png".format(name))
 
     plt.show()
 
