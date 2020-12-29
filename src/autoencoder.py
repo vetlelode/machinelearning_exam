@@ -10,12 +10,13 @@ from sklearn.preprocessing import StandardScaler
 from stat_tools import gamma_threshold, LogLikelihood, split_inliers_outliers
 from sklearn.manifold import TSNE
 from plotting import plot_report, scatterplot
+from sklearn.metrics import average_precision_score
 
 # Hyperparameters:
-train_size    = 0.8  # 0-1
+train_size    = 0.7  # 0-1
 pollution     = 0    # 0-1
 
-undersampling = 10_000
+undersampling = 100_000
 
 hidden_layers = [10, 10, 2, 10, 10]
 activation = "tanh"  # or relu. Tanh works best (and gives the nicest graphs!)
@@ -28,7 +29,7 @@ activation = "tanh"  # or relu. Tanh works best (and gives the nicest graphs!)
 # the threshold is pushed past the peak of the outliers
 
 # Higher thresholds for LL lead to more operationally useful results.
-threshold = 0.95
+threshold = 0.99
 
 
 def relu(X):
@@ -312,6 +313,8 @@ plot_report(
 print("r2 report:")
 print(confusion_matrix(test_Y, r2_pred))
 print(classification_report(test_Y, r2_pred))
+r2_auprc = average_precision_score(test_Y, r2_pred)
+print(f"AU-PRC: {r2_auprc}")
 
 # AE-LL has stable performance, even when undersampling
 # Log-Likelihood of the reconstruction errors provide better and more
@@ -321,6 +324,8 @@ print(classification_report(test_Y, r2_pred))
 print("AE-LL report:")
 print(confusion_matrix(test_Y, aell_pred))
 print(classification_report(test_Y, aell_pred))
+aell_auprc = average_precision_score(test_Y, aell_pred)
+print(f"AU-PRC: {aell_auprc}")
 
 # Log-likelihood of the raw data gives comparable results
 # to the auto-encoder recreation error log likelihood.
@@ -333,6 +338,8 @@ print(classification_report(test_Y, aell_pred))
 print("direct-LL report:")
 print(confusion_matrix(test_Y, dll_pred))
 print(classification_report(test_Y, dll_pred))
+dll_auprc = average_precision_score(test_Y, dll_pred)
+print(f"AU-PRC: {dll_auprc}")
 
 
 # Correlation analysis
