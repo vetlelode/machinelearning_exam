@@ -97,11 +97,10 @@ class AutoEncoderOutlierPredictor:
         # Score the training data with r2, which is the loss function used in
         # the auto encoder. Outliers should present worse scoring in the loss
         # function, as the auto encoder has never been trained on them
-        train_r2_scores = self._score_r2(self.train_X, self.train_recreation)
+        train_r2_scores = r2_score(self.train_X.T, self.train_recreation.T, multioutput="raw_values")
         
         # Adjust the scoring to be positive
-        mm = max(train_r2_scores) + 1e-7  # add a small value to avoid dealing with zeroes
-        self.r2_transform = lambda scores: -(scores-mm)
+        self.r2_transform = lambda scores: -np.subtract(scores,1) #-(scores-mm)
         self.train_r2_scores = self.r2_transform(train_r2_scores)
         # The r2 scores may not follow a gamma distribution entirely,
         # but in our experience, it follows it well enough to give us
@@ -157,17 +156,11 @@ class AutoEncoderOutlierPredictor:
         # Encode n layers of the network
         return [encode(network[:n_layers], data) for data in datas]
 
-    def _score_r2(self, data, recreated_data):
-        # Score the samples with r2. This is the loss function used in the 
-        # autoencoder. This is done because sklearn auto encoder does not 
-        # support per sample scoring
-        return [r2_score( data[i], recreated_data[i] ) for i in range(len(data))]
-
     def score_r2(self, data):
         # Scale data to the same space as the training data
         data = self.scaler.transform(data)
         # Score the samples with r2. This is the loss function used in the autoencoder.
-        scores = self._score_r2(data, self.auto_encoder.predict(data))
+        scores = r2_score(data.T, self.auto_encoder.predict(data).T, multioutput="raw_values")
         # Transform the scores such that most of it is positive
         return self.r2_transform(scores)
     
@@ -297,7 +290,7 @@ plot_report(
         xscale="log"
         )
 
-
+baseline = sum(test_Y)/len(test_Y)
 # It seems r2 scoring performs better when we sample more data
 # The statistical model fitted from the training data, used to set a threshold,
 # is not too good of a fit and produces more false negatives than we would
@@ -314,7 +307,8 @@ print("r2 report:")
 print(confusion_matrix(test_Y, r2_pred))
 print(classification_report(test_Y, r2_pred))
 r2_auprc = average_precision_score(test_Y, r2_pred)
-print(f"AU-PRC: {r2_auprc}")
+print(f"AU-PRC:   {r2_auprc}")
+print(f"baseline: {baseline}")
 
 # AE-LL has stable performance, even when undersampling
 # Log-Likelihood of the reconstruction errors provide better and more
@@ -325,7 +319,8 @@ print("AE-LL report:")
 print(confusion_matrix(test_Y, aell_pred))
 print(classification_report(test_Y, aell_pred))
 aell_auprc = average_precision_score(test_Y, aell_pred)
-print(f"AU-PRC: {aell_auprc}")
+print(f"AU-PRC:   {aell_auprc}")
+print(f"baseline: {baseline}")
 
 # Log-likelihood of the raw data gives comparable results
 # to the auto-encoder recreation error log likelihood.
@@ -339,7 +334,8 @@ print("direct-LL report:")
 print(confusion_matrix(test_Y, dll_pred))
 print(classification_report(test_Y, dll_pred))
 dll_auprc = average_precision_score(test_Y, dll_pred)
-print(f"AU-PRC: {dll_auprc}")
+print(f"AU-PRC:   {dll_auprc}")
+print(f"baseline: {baseline}")
 
 
 # Correlation analysis
@@ -357,32 +353,32 @@ plt.matshow(pd.DataFrame(train_X).corr())
 plt.title("Correlation matrix: training data")
 plt.show()
 
-
-# Visualize dataset with TSNE
-print("Visualizing dataset with TSNE")
-g = AE.scaler.transform(test_X)
-tsne = TSNE(
-        n_components=2,
-        verbose=2,
-        n_iter=500,
-        perplexity=10,
-        random_state=1,
-        learning_rate=200
-        ).fit_transform(g)
-
-inlier_tsne, outlier_tsne = split_inliers_outliers(tsne, test_Y)
-inlier_tsne = np.asarray(inlier_tsne)
-outlier_tsne = np.asarray(outlier_tsne)
-
-# TSNE is unsupervised, and clusters most of the outliers in the
-# same cluster, indicating that outliers have distinguishing features.
-
-# Some outliers cluster together with inliers, indicating
-# that the difference between inliers and outliers is not trivial.
-scatterplot(
-        (inlier_tsne, outlier_tsne), 
-        alphas=(0.3, 0.5),
-        cols=("yellow", "black"),
-        labels=("inliers", "outliers"),
-        title="TSNE - 2 components"
-        )
+if input("visualize with TSNE? y/n: ") == "y":
+    # Visualize dataset with TSNE
+    print("Visualizing dataset with TSNE")
+    g = AE.scaler.transform(test_X)
+    tsne = TSNE(
+            n_components=2,
+            verbose=2,
+            n_iter=500,
+            perplexity=10,
+            random_state=1,
+            learning_rate=200
+            ).fit_transform(g)
+    
+    inlier_tsne, outlier_tsne = split_inliers_outliers(tsne, test_Y)
+    inlier_tsne = np.asarray(inlier_tsne)
+    outlier_tsne = np.asarray(outlier_tsne)
+    
+    # TSNE is unsupervised, and clusters most of the outliers in the
+    # same cluster, indicating that outliers have distinguishing features.
+    
+    # Some outliers cluster together with inliers, indicating
+    # that the difference between inliers and outliers is not trivial.
+    scatterplot(
+            (inlier_tsne, outlier_tsne), 
+            alphas=(0.3, 0.5),
+            cols=("yellow", "black"),
+            labels=("inliers", "outliers"),
+            title="TSNE - 2 components"
+            )
