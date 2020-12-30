@@ -12,6 +12,7 @@ class StandardScaler:
     z = (x - u) / s
     where x is the original sample, u is the mean value of the column,
     and s is the standard deviation of the column
+    Written to work with Sklearn style pipelines.   
     """
 
     def __init__(self):
@@ -32,13 +33,13 @@ class StandardScaler:
 
     def transform(self, X):
         """
-        Transform the provided dataset X using the earlier fit
+        Transform the provided dataset X using the paramaters estimated in the fit
         """
         X = np.array(X)
         X_new = np.empty(X.shape)
         #z = (x - u) / s
-        X -= self.scaler_vars[:, 0]
-        X /= np.sqrt(self.scaler_vars[:, 1])
+        X -= self.scaler_vars[:, 0]  # X-U
+        X /= np.sqrt(self.scaler_vars[:, 1])  # (X-u)/s
 
         return X
 
@@ -51,13 +52,16 @@ class StandardScaler:
         return self.transform(X=X)
 
     def _reset(self):
-        "Reset everything"
+        """
+        Resets the variables
+        """
         self.scaler_vars = np.empty((30, 2))
 
 
 if __name__ == "__main__":
     """
     This is just testing code to make sure the scaler gives the same results as the SKlearn one 
+    If you are not running this file directly you can ignore it.
     """
     X_train, Y_train, X_test, Y_test = get_dataset(
         sample=1000, pollution=0.7, train_size=0.9)
