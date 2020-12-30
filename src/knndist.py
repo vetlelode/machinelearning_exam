@@ -14,16 +14,17 @@ from stat_tools import gamma_threshold, split_inliers_outliers
 from plotting import plot_report
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
+from sklearn.metrics import average_precision_score
 
 
 # Hyperparameters
 k = 10
 undersampling = 10_000 #values above 10 000 takes too long to be useful
-train_size = 0.6 # KNN works well when undersampling the training data
+train_size = 0.4 # KNN works well when undersampling the training data
 n_components = 5 # Graphing works poorly for components=2
 pollution = 0.1
 weights = [1,50] # Outliers are weighted higher than inliers
-threshold = 0.9
+threshold = 0.99
 
 class KNN:
     def __init__(
@@ -150,11 +151,20 @@ inliers, outliers = split_inliers_outliers(test_X, test_Y)
 
 knn_os_pred_Y = [1 if score > knn.threshold else 0 for score in test_knn_outlier_scores]
 
+knn_auprc = average_precision_score(test_Y, knn_pred_Y)
+knn_os_auprc = average_precision_score(test_Y, knn_os_pred_Y)
+
+baseline = sum(test_Y)/len(test_Y)
+
 print(confusion_matrix(test_Y, knn_pred_Y))
 print(classification_report(test_Y, knn_pred_Y))
+print(f"AU-PRC: {knn_auprc}")
+print(f"baseline: {baseline}")
 
 print(confusion_matrix(test_Y, knn_os_pred_Y))
 print(classification_report(test_Y, knn_os_pred_Y))
+print(f"AU-PRC: {knn_os_auprc}")
+print(f"baseline: {baseline}")
 
 plot_report(knn.train_scores, inlier_scores, outlier_scores, knn.p, knn.threshold, xscale="log", title="KNN outlier scores")
 
