@@ -44,6 +44,7 @@ class LogLikelihood:
         self.μs = [np.mean(X[:,i]) for i in range(self.n_axes)]
         # the standard deviation of each axis
         self.σ2s = [np.var(X[:,i]) for i in range(self.n_axes)]
+        #self.lnσs = np.log(self.σ2s) *0.5
         self.train_scores = self.score(X)
         
         # Since the log-likelihood is the sum of squares,
@@ -67,12 +68,12 @@ class LogLikelihood:
         # only that the order of scores are the same.
         
         # f(x)=e^(-(x - μ)^2/(2 σ^2))/(sqrt(2 π) σ)
-        # g(x)=(x - μ)^2 / (σ^2)
+        # g(x)=(x - μ)^2 / (σ^2). The ln(σ) can be dropped too
         
         # ln(f(x))=-(x - μ)^2/(2 σ^2)-ln(sqrt(2 π) σ)
-        # ln(f(x))+ln(sqrt(2 π) σ)=-(x - μ)^2/(2 σ^2)
-        # -2(ln(f(x))+ln(sqrt(2 π) σ)) = (x - μ)^2 / (σ^2)
-        # g(x) = -ln(f(x)^2 2 π σ^2)
+        # ln(f(x))=-(x - μ)^2/(σ^2) /2-ln(sqrt(2 π)) -ln(σ)
+        # ln(f(x))*2+ln(sqrt(2 π))=-(x - μ)^2/(σ^2) -ln(σ)
+        # ln(f(x))*2+ln(sqrt(2 π))+ln(σ)=-(x - μ)^2/(σ^2)
 
         # We can then sum the log-likelihood of each axis
         # as that is isomorphic to taking the product of the likelihood

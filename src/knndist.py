@@ -1,9 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Sun Dec 27 23:06:41 2020
-
-@author: Ask
-"""
 from preprocessing import get_dataset
 from scaler import StandardScaler
 import numpy as np
@@ -16,13 +11,12 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 from sklearn.metrics import average_precision_score
 
-
 # Hyperparameters
 k = 10
 undersampling = 10_000 #values above 10 000 takes too long to be useful
 train_size = 0.4 # KNN works well when undersampling the training data
 n_components = 5 # Graphing works poorly for components=2
-pollution = 0.1
+pollution = 0.05
 weights = [1,50] # Outliers are weighted higher than inliers
 threshold = 0.99
 
@@ -137,7 +131,7 @@ knn = KNN(
         train_Y, 
         n_components, 
         weights=weights,
-        threshold=0.9
+        threshold=threshold
         )
 print("predicting outliers based on knn classes")
 knn_pred_Y = list(progress_report(knn.classify(test_X),len(test_X)))

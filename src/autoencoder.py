@@ -1,5 +1,3 @@
-# Author: Ask H. B.
-
 import pandas as pd
 import numpy as np
 from preprocessing import get_dataset
@@ -13,12 +11,11 @@ from plotting import plot_report, scatterplot
 from sklearn.metrics import average_precision_score
 
 # Hyperparameters:
-train_size    = 0.7  # 0-1
+train_size    = 0.5  # 0-1
 pollution     = 0    # 0-1
 
-undersampling = 100_000
-
-hidden_layers = [10, 10, 2, 10, 10]
+undersampling = 240_000
+hidden_layers = [20, 10, 2, 10, 20] # Latent space works poorly at size=1
 activation = "tanh"  # or relu. Tanh works best (and gives the nicest graphs!)
 
 # The percentile above which we can consider everything an outlier.
@@ -29,7 +26,8 @@ activation = "tanh"  # or relu. Tanh works best (and gives the nicest graphs!)
 # the threshold is pushed past the peak of the outliers
 
 # Higher thresholds for LL lead to more operationally useful results.
-threshold = 0.99
+threshold = 0.997 # for LL
+#threshold = 0.94 # for R2
 
 
 def relu(X):
