@@ -4,7 +4,7 @@ import numpy as np
 from sklearn.neighbors import KNeighborsClassifier, NeighborhoodComponentsAnalysis
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix
-from sklearn.preprocessing import StandardScaler
+from scaler import StandardScaler
 from sklearn.model_selection import GridSearchCV
 from sklearn.decomposition import PCA, KernelPCA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
@@ -23,7 +23,7 @@ def runKNN(X_train, Y_train, X_test, K=1) -> list:
     """
     # Scale all the output using a standard scaler
     scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
+    X_train = scaler.fit_transform(X=X_train)
     X_test = scaler.transform(X_test)
 
     classifier = KNeighborsClassifier(n_neighbors=K)
