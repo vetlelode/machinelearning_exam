@@ -1,15 +1,34 @@
-import pandas as pd
-import numpy as np
-from preprocessing import get_dataset
-from sklearn.neural_network import MLPRegressor
-import matplotlib.pyplot as plt
-from sklearn.metrics import classification_report, confusion_matrix, r2_score
-from sklearn.preprocessing import StandardScaler
-from stat_tools import gamma_threshold, LogLikelihood, split_inliers_outliers
-from stat_tools import OutlierDetectorScorer
-from sklearn.manifold import TSNE
-from plotting import plot_report, scatterplot, prc_plot
+import pandas as pd # Only used in multicollinearity analysis
+import numpy as np # Used for all sorts of matrix operations
 
+import matplotlib.pyplot as plt # plotting...
+
+# Neural net for the autoencoder
+from sklearn.neural_network import MLPRegressor
+# the regressor uses r2 scores in its own evaluation, but not
+# per sample. Import r2_score on its own so that we can score per sample
+from sklearn.metrics import r2_score
+# Admittedly a deceptive metric for scoring highly unbalanced datasets
+from sklearn.metrics import confusion_matrix
+# Some important metrics to look at when grading our models
+from sklearn.metrics import classification_report
+# Scales the data to minimize the impact of high variance features
+from sklearn.preprocessing import StandardScaler
+# Visualizes the data in two dimensions while preserving a sense of nearnes
+from sklearn.manifold import TSNE
+
+
+# Custom libraries
+
+from stat_tools import gamma_threshold
+from stat_tools import LogLikelihood
+from stat_tools import split_inliers_outliers
+from stat_tools import OutlierDetectorScorer
+
+from preprocessing import get_dataset
+from plotting import plot_report
+from plotting import scatterplot
+from plotting import prc_plot
 
 # Hyperparameters:
 train_size    = 0.5  # 0-1
@@ -40,7 +59,8 @@ def relu(X):
 def identity(x):
     return x
 
-
+# Forward propogation through a custom number of layers
+# Used in order to visualize the latent space.
 def encode(network, X):
     z = np.asmatrix(X)
     for weight, bias, activation in network:
@@ -48,7 +68,7 @@ def encode(network, X):
         z = activation( np.add(np.matmul(z, weight), bias ) )
     return np.asarray(z)
 
-
+# Our own autoencoder based off of sklearns MLPRegressor
 class AutoEncoderOutlierPredictor:
     def __init__(
             self,
@@ -296,11 +316,8 @@ plot_report(
         xscale="log"
         )
 
+# The baseline to compare the AUPRC scores to
 baseline = sum(test_Y)/len(test_Y)
-# It seems r2 scoring performs better when we sample more data
-# The statistical model fitted from the training data, used to set a threshold,
-# is not too good of a fit and produces more false negatives than we would
-# like.
 
 # R2 has a narrower gap between outliers and inliers, and a lot more overlap.
 # This leads to more uncertain detection, even for more extreme outliers.

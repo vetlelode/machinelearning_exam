@@ -1,9 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Mon Dec 28 17:09:27 2020
-
-@author: Ask
-"""
 
 import numpy as np
 from scipy.stats import invgamma
@@ -94,10 +89,11 @@ class LogLikelihood:
     def set_threshold(self, threshold):
         self.threshold, _ = gamma_threshold(self.train_scores, threshold, p=self.p)
 
-
+# Finds the indices of the optimal thresholds.
 def optimal_prc_indices(precissions, recalls, recall_importance=2):
     return np.argsort(np.multiply(precissions, recalls**recall_importance))[::-1]
 
+# Generates the report data so we can compare models
 class OutlierDetectorScorer:
     def __init__(self, y_true, y_scores, indices=10):
         self.y_true = y_true
