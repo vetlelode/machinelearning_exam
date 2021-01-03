@@ -26,8 +26,8 @@ activation = "tanh"  # or relu. Tanh works best (and gives the nicest graphs!)
 # the threshold is pushed past the peak of the outliers
 
 # Higher thresholds for LL lead to more operationally useful results.
-threshold = 0.997 # for LL
-#threshold = 0.94 # for R2
+threshold = 0.96 # for R2
+#threshold = 0.995 # for LL
 
 
 def relu(X):
@@ -197,8 +197,8 @@ class AutoEncoderOutlierPredictor:
 train_X, train_Y, test_X, test_Y = get_dataset(
         sample=undersampling,
         # Not training the encoder on any outliers gives the best results
-        pollution=0,  # How much of the outliers to put in the training set
-        train_size=0.8  # How much of the inliers to put in the training set
+        pollution=pollution,  # How much of the outliers to put in the training set
+        train_size=train_size  # How much of the inliers to put in the training set
         )
 
 # Isolate inliers and outliers for graphing
@@ -233,6 +233,7 @@ r2_scores = AE.score_r2(test_X)
 r2_pred = AE.predict_r2_from_scores(r2_scores)
 
 # Plotting
+
 plot_report(
         AE.train_r2_scores, 
         *split_inliers_outliers(r2_scores, test_Y),
@@ -253,6 +254,7 @@ aell_scores = AE.score_ll(test_X)
 aell_pred = AE.predict_ll_from_scores(aell_scores)
 
 # Plotting
+
 plot_report(
         AE.LL.train_scores, 
         *split_inliers_outliers(aell_scores,test_Y),
@@ -304,7 +306,7 @@ baseline = sum(test_Y)/len(test_Y)
 print("r2 report:")
 print(confusion_matrix(test_Y, r2_pred))
 print(classification_report(test_Y, r2_pred))
-r2_auprc = average_precision_score(test_Y, r2_pred)
+r2_auprc = average_precision_score(test_Y, r2_scores, average="weighted")
 print(f"AU-PRC:   {r2_auprc}")
 print(f"baseline: {baseline}")
 
@@ -316,7 +318,7 @@ print(f"baseline: {baseline}")
 print("AE-LL report:")
 print(confusion_matrix(test_Y, aell_pred))
 print(classification_report(test_Y, aell_pred))
-aell_auprc = average_precision_score(test_Y, aell_pred)
+aell_auprc = average_precision_score(test_Y, aell_scores, average="weighted")
 print(f"AU-PRC:   {aell_auprc}")
 print(f"baseline: {baseline}")
 
@@ -331,7 +333,7 @@ print(f"baseline: {baseline}")
 print("direct-LL report:")
 print(confusion_matrix(test_Y, dll_pred))
 print(classification_report(test_Y, dll_pred))
-dll_auprc = average_precision_score(test_Y, dll_pred)
+dll_auprc = average_precision_score(test_Y, dll_scores, average="weighted")
 print(f"AU-PRC:   {dll_auprc}")
 print(f"baseline: {baseline}")
 
