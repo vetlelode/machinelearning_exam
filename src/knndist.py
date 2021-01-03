@@ -6,7 +6,8 @@ from sklearn.decomposition import PCA
 from sklearn.pipeline import make_pipeline
 from sklearn.metrics import classification_report, confusion_matrix
 from stat_tools import gamma_threshold, split_inliers_outliers
-from plotting import plot_report
+from stat_tools import OutlierDetectorScorer
+from plotting import plot_report, prc_plot
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 from sklearn.metrics import average_precision_score
@@ -14,11 +15,11 @@ from sklearn.metrics import average_precision_score
 # Hyperparameters
 k = 10
 undersampling = 10_000 #values above 10 000 takes too long to be useful
-train_size = 0.4 # KNN works well when undersampling the training data
+train_size = 0.2 # KNN works well when undersampling the training data
 n_components = 5 # Graphing works poorly for components=2
 pollution = 0.05
 weights = [1,50] # Outliers are weighted higher than inliers
-threshold = 0.99
+threshold = 0.995
 
 class KNN:
     def __init__(
@@ -139,14 +140,14 @@ knn_pred_Y = list(progress_report(knn.classify(test_X),len(test_X)))
 print("predicting outliers based on knn outliers scores")
 test_knn_outlier_scores = list(progress_report(knn.outlier_score(test_X),len(test_X)))
 
-inlier_scores, outlier_scores = split_inliers_outliers(test_knn_outlier_scores, test_Y)
-inliers, outliers = split_inliers_outliers(test_X, test_Y)
+#inlier_scores, outlier_scores = split_inliers_outliers(test_knn_outlier_scores, test_Y)
+#inliers, outliers = split_inliers_outliers(test_X, test_Y)
 
 
 knn_os_pred_Y = [1 if score > knn.threshold else 0 for score in test_knn_outlier_scores]
 
+
 knn_auprc = average_precision_score(test_Y, knn_pred_Y)
-knn_os_auprc = average_precision_score(test_Y, knn_os_pred_Y)
 
 baseline = sum(test_Y)/len(test_Y)
 
@@ -157,10 +158,14 @@ print(f"baseline: {baseline}")
 
 print(confusion_matrix(test_Y, knn_os_pred_Y))
 print(classification_report(test_Y, knn_os_pred_Y))
-print(f"AU-PRC: {knn_os_auprc}")
+knn_os_scorer = OutlierDetectorScorer(test_Y, test_knn_outlier_scores)
+prc_plot(knn_os_scorer.precisions, knn_os_scorer.recalls, knn_os_scorer.optimal_indices)
+print(f"AU-PRC: {knn_os_scorer.auprc}")
 print(f"baseline: {baseline}")
+print(f"Threshold: {knn.threshold}")
+print(f"Optimal threshold: {knn_os_scorer.optimal_thresholds()[0]}")
 
-plot_report(knn.train_scores, inlier_scores, outlier_scores, knn.p, knn.threshold, xscale="log", title="KNN outlier scores")
+plot_report(knn.train_scores, *split_inliers_outliers(test_knn_outlier_scores, test_Y), knn.p, knn.threshold, xscale="log", title="KNN outlier scores")
 
 
 if n_components == 2:

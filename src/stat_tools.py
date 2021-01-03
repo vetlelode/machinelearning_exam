@@ -7,6 +7,8 @@ Created on Mon Dec 28 17:09:27 2020
 
 import numpy as np
 from scipy.stats import invgamma
+from sklearn.metrics import average_precision_score
+from sklearn.metrics import precision_recall_curve
 
 
 def split_inliers_outliers(X, Y):
@@ -91,3 +93,18 @@ class LogLikelihood:
 
     def set_threshold(self, threshold):
         self.threshold, _ = gamma_threshold(self.train_scores, threshold, p=self.p)
+
+
+def optimal_prc_indices(precissions, recalls, recall_importance=2):
+    return np.argsort(np.multiply(precissions, recalls**recall_importance))[::-1]
+
+class OutlierDetectorScorer:
+    def __init__(self, y_true, y_scores, indices=10):
+        self.y_true = y_true
+        self.y_scores = y_scores
+        self.auprc = average_precision_score(y_true, y_scores, average="weighted")
+        self.precisions, self.recalls, self.thresholds = precision_recall_curve(y_true, y_scores)
+        self.optimal_indices = optimal_prc_indices(self.precisions, self.recalls, recall_importance=2)[:indices]
+        
+    def optimal_thresholds(self):
+        return self.thresholds[self.optimal_indices]

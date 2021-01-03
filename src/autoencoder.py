@@ -6,13 +6,14 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report, confusion_matrix, r2_score
 from sklearn.preprocessing import StandardScaler
 from stat_tools import gamma_threshold, LogLikelihood, split_inliers_outliers
+from stat_tools import OutlierDetectorScorer
 from sklearn.manifold import TSNE
-from plotting import plot_report, scatterplot
-from sklearn.metrics import average_precision_score
+from plotting import plot_report, scatterplot, prc_plot
+
 
 # Hyperparameters:
 train_size    = 0.5  # 0-1
-pollution     = 0    # 0-1
+pollution     = 0.05    # 0-1
 
 undersampling = 240_000
 hidden_layers = [20, 10, 2, 10, 20] # Latent space works poorly at size=1
@@ -26,7 +27,9 @@ activation = "tanh"  # or relu. Tanh works best (and gives the nicest graphs!)
 # the threshold is pushed past the peak of the outliers
 
 # Higher thresholds for LL lead to more operationally useful results.
-threshold = 0.96 # for R2
+threshold = 0.96
+r2_threshold = 0.96
+ll_threshold = 0.995
 #threshold = 0.995 # for LL
 
 
@@ -52,6 +55,8 @@ class AutoEncoderOutlierPredictor:
             hidden_layers: list = [20, 10, 2, 10, 10, 20],
             activation : str = "tanh",
             threshold = 0.9,
+            r2_threshold = None,
+            ll_threshold = None,
             verbose=True,
             max_iter=50
             ):
@@ -68,6 +73,8 @@ class AutoEncoderOutlierPredictor:
         self.layers = len(hidden_layers)
         self.activation = activation
         self.threshold = threshold
+        self.r2_threshold = r2_threshold if r2_threshold else threshold
+        self.ll_threshold = ll_threshold if ll_threshold else threshold
 
     def fit(self, train_X):
         print("fitting data")
@@ -108,7 +115,7 @@ class AutoEncoderOutlierPredictor:
         # No significant portion of outliers present themselves on
         # the lower end of the distribution, so it is reasonable
         # to set the threshold on only one side of the curve
-        self.r2_threshold, self.r2_p = gamma_threshold(self.train_r2_scores, self.threshold)
+        self.r2_threshold, self.r2_p = gamma_threshold(self.train_r2_scores, self.r2_threshold)
         # p is the describing parameters of the gamma curve
         
         # Log-Likelihood
@@ -139,7 +146,7 @@ class AutoEncoderOutlierPredictor:
         # assume the log-likelihood follows the more generalized gamma 
         # distribution
         train_recreation_errors = self.train_X-self.train_recreation
-        self.LL = LogLikelihood(train_recreation_errors, self.threshold)
+        self.LL = LogLikelihood(train_recreation_errors, self.ll_threshold)
         
         print("Fit complete")
 
@@ -185,9 +192,6 @@ class AutoEncoderOutlierPredictor:
         return self.LL.predict_from_scores(scores)
 
 
-# Diagrams - Details unimportant
-
-
 
 # MAIN PROGRAM
 
@@ -209,7 +213,9 @@ inliers, outliers = split_inliers_outliers(test_X, test_Y)
 AE = AutoEncoderOutlierPredictor(
         hidden_layers=hidden_layers,
         activation=activation,
-        threshold=threshold
+        threshold=threshold,
+        r2_threshold=r2_threshold,
+        ll_threshold=ll_threshold
         )
 
 # Fit to training data, this will take a while
@@ -272,7 +278,7 @@ plot_report(
 # If it performs as well or better, the AE is a redundant step.
 
 # Scaling the data leads to the same results as not scaling it.
-direct_LL = LogLikelihood(train_X, threshold)
+direct_LL = LogLikelihood(train_X, ll_threshold)
 
 # Score the data. 
 dll_scores = direct_LL.score(test_X)
@@ -303,24 +309,30 @@ baseline = sum(test_Y)/len(test_Y)
 # while scores under that one but above another be put to manual
 # inspection, we would like to minimize this gap where manual
 # inspection is needed.
-print("r2 report:")
+print("\nr2 report:")
 print(confusion_matrix(test_Y, r2_pred))
 print(classification_report(test_Y, r2_pred))
-r2_auprc = average_precision_score(test_Y, r2_scores, average="weighted")
-print(f"AU-PRC:   {r2_auprc}")
+r2_scorer = OutlierDetectorScorer(test_Y, r2_scores)
+prc_plot(r2_scorer.precisions, r2_scorer.recalls, r2_scorer.optimal_indices)
+print(f"AU-PRC:   {r2_scorer.auprc}")
 print(f"baseline: {baseline}")
+print(f"Threshold: {AE.r2_threshold}")
+print(f"Optimal threshold: {r2_scorer.optimal_thresholds()[0]}")
 
 # AE-LL has stable performance, even when undersampling
 # Log-Likelihood of the reconstruction errors provide better and more
 # certain classifications. The overlapping section between outliers and inliers
 # is noticeably narrowed, as outliers have more extreme scores.
 # This is the better option with respect to the operational.
-print("AE-LL report:")
+print("\nAE-LL report:")
 print(confusion_matrix(test_Y, aell_pred))
 print(classification_report(test_Y, aell_pred))
-aell_auprc = average_precision_score(test_Y, aell_scores, average="weighted")
-print(f"AU-PRC:   {aell_auprc}")
+aell_scorer = OutlierDetectorScorer(test_Y, aell_scores)
+prc_plot(aell_scorer.precisions, aell_scorer.recalls, aell_scorer.optimal_indices)
+print(f"AU-PRC:   {aell_scorer.auprc}")
 print(f"baseline: {baseline}")
+print(f"Threshold: {AE.LL.threshold}")
+print(f"Optimal threshold: {aell_scorer.optimal_thresholds()[0]}")
 
 # Log-likelihood of the raw data gives comparable results
 # to the auto-encoder recreation error log likelihood.
@@ -330,12 +342,15 @@ print(f"baseline: {baseline}")
 # This shows that a standard statistical model could be used
 # for satisfactory results, as no advanced non-linear model
 # is needed.
-print("direct-LL report:")
+print("\ndirect-LL report:")
 print(confusion_matrix(test_Y, dll_pred))
 print(classification_report(test_Y, dll_pred))
-dll_auprc = average_precision_score(test_Y, dll_scores, average="weighted")
-print(f"AU-PRC:   {dll_auprc}")
+dll_scorer = OutlierDetectorScorer(test_Y, dll_scores)
+prc_plot(dll_scorer.precisions, dll_scorer.recalls, dll_scorer.optimal_indices)
+print(f"AU-PRC:   {dll_scorer.auprc}")
 print(f"baseline: {baseline}")
+print(f"Threshold: {direct_LL.threshold}")
+print(f"Optimal threshold: {dll_scorer.optimal_thresholds()[0]}")
 
 
 # Correlation analysis
@@ -382,3 +397,4 @@ if input("visualize with TSNE? y/n: ") == "y":
             labels=("inliers", "outliers"),
             title="TSNE - 2 components"
             )
+    

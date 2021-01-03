@@ -91,3 +91,13 @@ def plot_report(
     plt.ylabel("Density")
     plt.title(title)
     plt.show()
+
+
+def prc_plot(precission, recall, optimal_indices):
+    plt.plot(recall, precission)
+    plt.scatter(recall[optimal_indices], precission[optimal_indices], color="red", label="optimal threshold")
+    plt.legend(loc='upper right')
+    plt.title("precission-recall curve")
+    plt.xlabel("recall")
+    plt.ylabel("precission")
+    plt.show()
