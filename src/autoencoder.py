@@ -326,30 +326,29 @@ baseline = sum(test_Y)/len(test_Y)
 # while scores under that one but above another be put to manual
 # inspection, we would like to minimize this gap where manual
 # inspection is needed.
+r2_scorer = OutlierDetectorScorer(test_Y, r2_scores)
 print("\nr2 report:")
 print(confusion_matrix(test_Y, r2_pred))
 print(classification_report(test_Y, r2_pred))
-r2_scorer = OutlierDetectorScorer(test_Y, r2_scores)
-prc_plot(r2_scorer.precisions, r2_scorer.recalls, r2_scorer.optimal_indices)
 print(f"AU-PRC:   {r2_scorer.auprc}")
 print(f"baseline: {baseline}")
 print(f"Threshold: {AE.r2_threshold}")
 print(f"Optimal threshold: {r2_scorer.optimal_thresholds()[0]}")
-
+prc_plot(r2_scorer.precisions, r2_scorer.recalls, r2_scorer.optimal_indices)
 # AE-LL has stable performance, even when undersampling
 # Log-Likelihood of the reconstruction errors provide better and more
 # certain classifications. The overlapping section between outliers and inliers
 # is noticeably narrowed, as outliers have more extreme scores.
 # This is the better option with respect to the operational.
+aell_scorer = OutlierDetectorScorer(test_Y, aell_scores)
 print("\nAE-LL report:")
 print(confusion_matrix(test_Y, aell_pred))
 print(classification_report(test_Y, aell_pred))
-aell_scorer = OutlierDetectorScorer(test_Y, aell_scores)
-prc_plot(aell_scorer.precisions, aell_scorer.recalls, aell_scorer.optimal_indices)
 print(f"AU-PRC:   {aell_scorer.auprc}")
 print(f"baseline: {baseline}")
 print(f"Threshold: {AE.LL.threshold}")
 print(f"Optimal threshold: {aell_scorer.optimal_thresholds()[0]}")
+prc_plot(aell_scorer.precisions, aell_scorer.recalls, aell_scorer.optimal_indices)
 
 # Log-likelihood of the raw data gives comparable results
 # to the auto-encoder recreation error log likelihood.
@@ -359,16 +358,15 @@ print(f"Optimal threshold: {aell_scorer.optimal_thresholds()[0]}")
 # This shows that a standard statistical model could be used
 # for satisfactory results, as no advanced non-linear model
 # is needed.
+dll_scorer = OutlierDetectorScorer(test_Y, dll_scores)
 print("\ndirect-LL report:")
 print(confusion_matrix(test_Y, dll_pred))
 print(classification_report(test_Y, dll_pred))
-dll_scorer = OutlierDetectorScorer(test_Y, dll_scores)
-prc_plot(dll_scorer.precisions, dll_scorer.recalls, dll_scorer.optimal_indices)
 print(f"AU-PRC:   {dll_scorer.auprc}")
 print(f"baseline: {baseline}")
 print(f"Threshold: {direct_LL.threshold}")
 print(f"Optimal threshold: {dll_scorer.optimal_thresholds()[0]}")
-
+prc_plot(dll_scorer.precisions, dll_scorer.recalls, dll_scorer.optimal_indices)
 
 # Correlation analysis
 
