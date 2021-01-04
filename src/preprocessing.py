@@ -2,6 +2,7 @@
 import re
 import random
 import numpy as np
+import pandas as pd
 
 
 # Prevalence of fraud: 492 : 284315
@@ -93,7 +94,7 @@ def clean_data(data):
     # Second to last column is of exponential order
     # Cleaning this up by taking the logarithm improves the results slightly
     data[:,-2]=np.log(np.add(data[:,-2],1e-8))
-    return data
+    return np.asarray(pd.DataFrame(data).drop_duplicates())
 
 def preprocess_files():
     with open("../data/creditcard.csv", "r") as data_file:

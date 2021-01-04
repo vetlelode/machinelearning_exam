@@ -104,3 +104,8 @@ class OutlierDetectorScorer:
         
     def optimal_thresholds(self):
         return self.thresholds[self.optimal_indices]
+
+def bayes_factor(a,b):
+    p1,b1 = a, 1-a
+    p2,b2 = b, 1-b
+    return (p1*b1)/(p2/b2)
