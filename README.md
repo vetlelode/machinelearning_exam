@@ -6,10 +6,10 @@ You will need to download the data from: https://www.kaggle.com/mlg-ulb/creditca
 
 # Running the project:
 ## KNN
-    The KNN model has to be run from the src folder, from there run the knndist.py file either in and IDE or from the terminal.
+The KNN model has to be run from the src folder, from there run the knndist.py file either in and IDE or from the terminal.
 
 ## Autoencoder
-    Like KNN, but run the file autoencoder.py
+Like KNN, but run the file autoencoder.py
 
 ***Note that both models have to be run from inside the SRC folder if you are executing from the terminal***
 # Results
@@ -45,4 +45,57 @@ AU-PRC: 0.5871356710114534
 baseline: 0.006381376046389335
 Threshold: 5.453659516922431
 Optimal threshold: 7.021158787236504
+```
+## Autoencoder
+```
+r2 report:
+[[116031   3576]
+ [   132    317]]
+              precision    recall  f1-score   support
+
+         0.0       1.00      0.97      0.98    119607
+         1.0       0.08      0.71      0.15       449
+
+    accuracy                           0.97    120056
+   macro avg       0.54      0.84      0.57    120056
+weighted avg       1.00      0.97      0.98    120056
+
+AU-PRC:   0.12034870433061656
+baseline: 0.0037399213700273206
+Threshold: 1.0290043293222664
+Optimal threshold: 1.090871774622069
+
+AE-LL report:
+[[117753   1854]
+ [    88    361]]
+              precision    recall  f1-score   support
+
+         0.0       1.00      0.98      0.99    119607
+         1.0       0.16      0.80      0.27       449
+
+    accuracy                           0.98    120056
+   macro avg       0.58      0.89      0.63    120056
+weighted avg       1.00      0.98      0.99    120056
+
+AU-PRC:   0.32352661300064983
+baseline: 0.0037399213700273206
+Threshold: 232.80144134050897
+Optimal threshold: 265.8333236663422
+
+direct-LL report:
+[[118254   1353]
+ [   166    283]]
+              precision    recall  f1-score   support
+
+         0.0       1.00      0.99      0.99    119607
+         1.0       0.17      0.63      0.27       449
+
+    accuracy                           0.99    120056
+   macro avg       0.59      0.81      0.63    120056
+weighted avg       1.00      0.99      0.99    120056
+
+AU-PRC:   0.2614251422041023
+baseline: 0.0037399213700273206
+Threshold: 186.50434548160416
+Optimal threshold: 138.69541913655996
 ```
