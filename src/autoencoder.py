@@ -48,8 +48,7 @@ activation = "tanh"  # or relu. Tanh works best (and gives the nicest graphs!)
 # Higher thresholds for LL lead to more operationally useful results.
 threshold = 0.96
 r2_threshold = 0.96
-ll_threshold = 0.995
-#threshold = 0.995 # for LL
+ll_threshold = 0.96
 
 
 def relu(X):
