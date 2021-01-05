@@ -14,6 +14,8 @@ Like KNN, but run the file autoencoder.py
 ***Note that both models have to be run from inside the SRC folder if you are executing from the terminal***
 # Results
 ## KNN
+Typical result of an execution of the KNN code:
+![KNN image](img/knn.png)
 ```
 predicting outliers based on knn classes
 predicting outliers based on knn outliers scores
@@ -47,6 +49,8 @@ Threshold: 5.453659516922431
 Optimal threshold: 7.021158787236504
 ```
 ## Autoencoder
+![KNN image](img/Ae-LL.png)
+
 ```
 r2 report:
 [[116031   3576]
