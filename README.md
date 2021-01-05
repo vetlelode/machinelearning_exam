@@ -6,13 +6,13 @@ You will need to download the data from: https://www.kaggle.com/mlg-ulb/creditca
 
 # Running the project:
 The easiest way to run the project is through Anaconda Spyder, but you can also run the project from the terminal
-## KNN
-The KNN model has to be run from the src folder, from there run the knndist.py file either in and IDE or from the terminal.
+***Note that both models have to be run from inside the SRC folder if you are executing from the terminal***
 
+## KNN
+Run the file knndist.py, either through Spyder or from the terminal
 ## Autoencoder
 Like KNN, but run the file autoencoder.py
 
-***Note that both models have to be run from inside the SRC folder if you are executing from the terminal***
 # Results
 ## KNN
 Typical result of an execution of the KNN code:
