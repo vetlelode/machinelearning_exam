@@ -3,7 +3,8 @@ Exam project comparing two different machine learning models (KNN and AE) on a d
 
 # Data
 You will need to download the data from: https://www.kaggle.com/mlg-ulb/creditcardfraud, and place it in the data folder to run the project. On the first ever execution, the preprocessing code will do all the nesecarry changes to this file and place the results under the data folder
-
+this file must be called "creditcard.csv" in the data/ folder. This should then generate two new files, real.csv and fake.csv.
+If the creditcard.csv is not in the folder, you will have to download it from kaggle, which requires you to have an account.
 # Running the project:
 The easiest way to run the project is through Anaconda Spyder, but you can also run the project from the terminal
 ***Note that both models have to be run from inside the SRC folder if you are executing from the terminal***
@@ -53,62 +54,61 @@ Optimal threshold: 6.671499368837428
 ![Ae-ll](img/Ae-LL.png)
 
 ```
-r2 report:
-[[115883   3723]
- [   168    281]]
+l2 report:
+[[118438   1161]
+ [   154    319]]
               precision    recall  f1-score   support
 
-         0.0       1.00      0.97      0.98    119606
-         1.0       0.07      0.63      0.13       449
+         0.0       1.00      0.99      0.99    119599
+         1.0       0.22      0.67      0.33       473
 
-    accuracy                           0.97    120055
-   macro avg       0.53      0.80      0.55    120055
-weighted avg       1.00      0.97      0.98    120055
+    accuracy                           0.99    120072
+   macro avg       0.61      0.83      0.66    120072
+weighted avg       1.00      0.99      0.99    120072
 
-AU-PRC:   0.059480701265928936
-baseline: 0.0037399525217608597
-Threshold: 1.0538036036520326
-Optimal threshold: 1.0874440712669367
+AU-PRC:   0.31083608804509366
+baseline: 0.003939303084815778
+Threshold: 161.61855772834474
+Optimal threshold: 136.04940136989558
 
 AE-LL report:
-[[110501   9105]
- [    49    400]]
+[[116134   3465]
+ [    68    405]]
               precision    recall  f1-score   support
 
-         0.0       1.00      0.92      0.96    119606
-         1.0       0.04      0.89      0.08       449
+         0.0       1.00      0.97      0.99    119599
+         1.0       0.10      0.86      0.19       473
 
-    accuracy                           0.92    120055
-   macro avg       0.52      0.91      0.52    120055
-weighted avg       1.00      0.92      0.96    120055
+    accuracy                           0.97    120072
+   macro avg       0.55      0.91      0.59    120072
+weighted avg       1.00      0.97      0.98    120072
 
-AU-PRC:   0.31884060146866505
-baseline: 0.0037399525217608597
-Threshold: 79.63714409945796
-Optimal threshold: 243.18283662872676
+AU-PRC:   0.3524621480969143
+baseline: 0.003939303084815778
+Threshold: 157.69985694973795
+Optimal threshold: 298.46366035132934
 
 direct-LL report:
-[[114869   4737]
- [    61    388]]
+[[117604   1995]
+ [   104    369]]
               precision    recall  f1-score   support
 
-         0.0       1.00      0.96      0.98    119606
-         1.0       0.08      0.86      0.14       449
+         0.0       1.00      0.98      0.99    119599
+         1.0       0.16      0.78      0.26       473
 
-    accuracy                           0.96    120055
-   macro avg       0.54      0.91      0.56    120055
-weighted avg       1.00      0.96      0.98    120055
+    accuracy                           0.98    120072
+   macro avg       0.58      0.88      0.63    120072
+weighted avg       1.00      0.98      0.99    120072
 
-AU-PRC:   0.28141895166384373
-baseline: 0.0037399525217608597
-Threshold: 75.07279882307225
-Optimal threshold: 141.51047235194082
+AU-PRC:   0.27340540011681724
+baseline: 0.003939303084815778
+Threshold: 134.8904308391348
+Optimal threshold: 135.24625587544423
 ```
 ## Average AURPC scores on 20 iterations:
 
 | Support | Baseline | AE R²       | AE Log-likelihood | PureLog-likelihood | Mixed sample KNN; K = 10 | Inlier Only KNN; K=20 |
 |---------|----------|-------------|-------------------|--------------------|--------------------------|-----------------------|
-| 120492  | 0.0041   | 0.099 BF 27  | 0.375 BF 145      | 0.310 BF 109       | 0.706 BF 588             | 0.457                |
-| 70492   | 0.007    | 0.172 BF 29  | 0.460 BF 120      | 0.407 BF 97        | 0.738                    | 0.515                |
-| 18467   | 0.027    | 0.387 BF 22  | 0.706 BF 86       | 0.664 BF 71        | 0.773                    | 0.717                |
-| 6467    | 0.072    | 0.611 BF 20  | 0.831 BF 63       | 0.811 BF 55        | 0.778                    | 0.822 BF 65          |
+| 120492  | 0.0041   | 0.300 BF 100| 0.375 BF 145      | 0.310 BF 109       | 0.706 BF 588             | 0.457                 |
+| 70492   | 0.007    | 0.400 BF 96 | 0.460 BF 120      | 0.407 BF 97        | 0.738                    | 0.515                 |
+| 18467   | 0.027    | 0.660 BF 70 | 0.706 BF 86       | 0.664 BF 71        | 0.773                    | 0.717                 |

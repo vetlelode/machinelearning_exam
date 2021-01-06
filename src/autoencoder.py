@@ -5,9 +5,6 @@ import matplotlib.pyplot as plt # plotting...
 
 # Neural net for the autoencoder
 from sklearn.neural_network import MLPRegressor
-# the regressor uses r2 scores in its own evaluation, but not
-# per sample. Import r2_score on its own so that we can score per sample
-from sklearn.metrics import r2_score
 # Admittedly a deceptive metric for scoring highly unbalanced datasets
 from sklearn.metrics import confusion_matrix
 # Some important metrics to look at when grading our models
@@ -31,8 +28,8 @@ from plotting import scatterplot
 from plotting import prc_plot
 
 # Hyperparameters:
-train_size    = 0.5  # 0-1
-pollution     = 0.05    # 0-1
+train_size    = 0.5 # 0-1
+pollution     = 0    # 0-1
 
 undersampling = 240_000
 hidden_layers = [20, 10, 2, 10, 20] # Latent space works poorly at size=1
@@ -41,14 +38,9 @@ activation = "tanh"  # or relu. Tanh works best (and gives the nicest graphs!)
 # The percentile above which we can consider everything an outlier.
 # Higher threshold means less inliers detected as outliers,
 # but more outliers detected as inliers.
-
-# Higher thresholds for R2 only lead to worse results as
-# the threshold is pushed past the peak of the outliers
-
-# Higher thresholds for LL lead to more operationally useful results.
-threshold = 0.96
-r2_threshold = 0.96
-ll_threshold = 0.96
+threshold = 0.99
+l2_threshold = 0.996
+ll_threshold = 0.99
 
 
 def relu(X):
@@ -74,7 +66,7 @@ class AutoEncoderOutlierPredictor:
             hidden_layers: list = [20, 10, 2, 10, 10, 20],
             activation : str = "tanh",
             threshold = 0.9,
-            r2_threshold = None,
+            l2_threshold = None,
             ll_threshold = None,
             verbose=True,
             max_iter=50
@@ -92,7 +84,7 @@ class AutoEncoderOutlierPredictor:
         self.layers = len(hidden_layers)
         self.activation = activation
         self.threshold = threshold
-        self.r2_threshold = r2_threshold if r2_threshold else threshold
+        self.l2_threshold = l2_threshold if l2_threshold else threshold
         self.ll_threshold = ll_threshold if ll_threshold else threshold
 
     def fit(self, train_X):
@@ -114,35 +106,26 @@ class AutoEncoderOutlierPredictor:
         self.train_recreation = self.auto_encoder.predict(self.train_X)
         
         
-        # R2
+        # l2
         if self.verbose:
-            print("Scoring r2 data")
+            print("Scoring l2 data")
         
-        # Score the training data with r2, which is the loss function used in
+        # Score the training data with l2, which is the loss function used in
         # the auto encoder. Outliers should present worse scoring in the loss
         # function, as the auto encoder has never been trained on them
-        train_r2_scores = r2_score(self.train_X.T, self.train_recreation.T, multioutput="raw_values")
-        
-        # Adjust the scoring to be positive
-        self.r2_transform = lambda scores: -np.subtract(scores,1) #-(scores-mm)
-        self.train_r2_scores = self.r2_transform(train_r2_scores)
-        # The r2 scores may not follow a gamma distribution entirely,
-        # but in our experience, it follows it well enough to give us
-        # decent results, and we will continue to assume it is
-        # following a gamma distribution
+        self.train_l2_scores = l2_score(self.train_X, self.train_recreation)
         
         # No significant portion of outliers present themselves on
         # the lower end of the distribution, so it is reasonable
         # to set the threshold on only one side of the curve
-        self.r2_threshold, self.r2_p = gamma_threshold(self.train_r2_scores, self.r2_threshold)
+        self.l2_threshold, self.l2_p = gamma_threshold(self.train_l2_scores, self.l2_threshold)
         # p is the describing parameters of the gamma curve
         
         # Log-Likelihood
         if self.verbose:
             print("scoring log-likelihood data")
         
-        # R2 performs reasonably, but the difference between inliers
-        # and outliers is small. Some axes have higher variance than others
+        # Some axes have higher variance than others
         # in the training data, and those axes will have a bigger effect
         # on the score than the axes with lower variance. Since the model
         # has not been trained on any outliers, it is reasonable to assume
@@ -180,24 +163,24 @@ class AutoEncoderOutlierPredictor:
         # Encode n layers of the network
         return [encode(network[:n_layers], data) for data in datas]
 
-    def score_r2(self, data):
+    def score_l2(self, data):
         # Scale data to the same space as the training data
         data = self.scaler.transform(data)
-        # Score the samples with r2. This is the loss function used in the autoencoder.
-        scores = r2_score(data.T, self.auto_encoder.predict(data).T, multioutput="raw_values")
+        # Score the samples with l2. This is the loss function used in the autoencoder.
+        scores = l2_score(data, self.auto_encoder.predict(data))
         # Transform the scores such that most of it is positive
-        return self.r2_transform(scores)
+        return scores
     
-    def predict_r2(self, data):
+    def predict_l2(self, data):
         # Scale data to the same space as the training data
         data = self.scaler.transform(data)
-        # Score the samples with r2. This is the loss function used in the autoencoder.
-        scores = self.score_r2(data)
-        return self.predict_r2_from_scores(scores)
+        # Score the samples with l2. This is the loss function used in the autoencoder.
+        scores = self.score_l2(data)
+        return self.predict_l2_from_scores(scores)
 
-    def predict_r2_from_scores(self, scores):
+    def predict_l2_from_scores(self, scores):
         # If scores exceed the threshold, it is identified as an outlier
-        return [1 if x > self.r2_threshold else 0 for x in scores]
+        return [1 if x > self.l2_threshold else 0 for x in scores]
 
     def score_ll(self, data):
         data = self.scaler.transform(data)
@@ -210,6 +193,9 @@ class AutoEncoderOutlierPredictor:
     def predict_ll_from_scores(self, scores):
         return self.LL.predict_from_scores(scores)
 
+def l2_score(y_true, y_pred):
+    # Loss squared. The loss function of the autoencoder.
+    return np.square(np.subtract(y_true, y_pred)).sum(axis=1) #sum the row.
 
 
 # MAIN PROGRAM
@@ -233,7 +219,7 @@ AE = AutoEncoderOutlierPredictor(
         hidden_layers=hidden_layers,
         activation=activation,
         threshold=threshold,
-        r2_threshold=r2_threshold,
+        l2_threshold=l2_threshold,
         ll_threshold=ll_threshold
         )
 
@@ -252,25 +238,27 @@ scatterplot(
         title="Latent space"
         )
 
-# Score with R2, the loss function of the regressor
-r2_scores = AE.score_r2(test_X)
+# Score with l2, the loss function of the regressor
+l2_scores = AE.score_l2(test_X)
 # Predict its class from the score
-r2_pred = AE.predict_r2_from_scores(r2_scores)
+l2_pred = AE.predict_l2_from_scores(l2_scores)
 
 # Plotting
 
 plot_report(
-        AE.train_r2_scores, 
-        *split_inliers_outliers(r2_scores, test_Y),
-        AE.r2_p, 
-        AE.r2_threshold, 
-        "R2"
+        AE.train_l2_scores, 
+        *split_inliers_outliers(l2_scores, test_Y),
+        AE.l2_p, 
+        AE.l2_threshold, 
+        "l2",
+        xaxis="score (log scale)",
+        xscale="log"
         )
 
-# R2 scoring does not take into account that the different axes
+# l2 scoring does not take into account that the different axes
 # might have different variances. Since the model is trained
 # only on inliers, it might happen that the distinguishing
-# axes of the outliers have low variance, and therefore R2 will
+# axes of the outliers have low variance, and therefore l2 will
 # not pick up on that.
 
 # Score based on the log-likelihood of the recreation errors
@@ -318,22 +306,22 @@ plot_report(
 # The baseline to compare the AUPRC scores to
 baseline = sum(test_Y)/len(test_Y)
 
-# R2 has a narrower gap between outliers and inliers, and a lot more overlap.
+# l2 has a narrower gap between outliers and inliers, and a lot more overlap.
 # This leads to more uncertain detection, even for more extreme outliers.
 # Considering that different scores could be used differently in an operational
 # environment, such as blocking all transactions above a certain threshold,
 # while scores under that one but above another be put to manual
 # inspection, we would like to minimize this gap where manual
 # inspection is needed.
-r2_scorer = OutlierDetectorScorer(test_Y, r2_scores)
-print("\nr2 report:")
-print(confusion_matrix(test_Y, r2_pred))
-print(classification_report(test_Y, r2_pred))
-print(f"AU-PRC:   {r2_scorer.auprc}")
+l2_scorer = OutlierDetectorScorer(test_Y, l2_scores)
+print("\nl2 report:")
+print(confusion_matrix(test_Y, l2_pred))
+print(classification_report(test_Y, l2_pred))
+print(f"AU-PRC:   {l2_scorer.auprc}")
 print(f"baseline: {baseline}")
-print(f"Threshold: {AE.r2_threshold}")
-print(f"Optimal threshold: {r2_scorer.optimal_thresholds()[0]}")
-prc_plot(r2_scorer.precisions, r2_scorer.recalls, r2_scorer.optimal_indices)
+print(f"Threshold: {AE.l2_threshold}")
+print(f"Optimal threshold: {l2_scorer.optimal_thresholds()[0]}")
+prc_plot(l2_scorer.precisions, l2_scorer.recalls, l2_scorer.optimal_indices)
 # AE-LL has stable performance, even when undersampling
 # Log-Likelihood of the reconstruction errors provide better and more
 # certain classifications. The overlapping section between outliers and inliers

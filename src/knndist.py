@@ -137,12 +137,14 @@ knn_auprc = average_precision_score(test_Y, knn_pred_Y)
 # The baseline to compare the AUPRC score to.
 baseline = sum(test_Y)/len(test_Y)
 
+print("Ordinary KNN report")
 print(confusion_matrix(test_Y, knn_pred_Y))
 print(classification_report(test_Y, knn_pred_Y))
 print(f"AU-PRC: {knn_auprc}")
 print(f"baseline: {baseline}\n")
 
 knn_os_scorer = OutlierDetectorScorer(test_Y, test_knn_outlier_scores)
+print("KNN outlier factor report:")
 print(confusion_matrix(test_Y, knn_os_pred_Y))
 print(classification_report(test_Y, knn_os_pred_Y))
 print(f"AU-PRC: {knn_os_scorer.auprc}")

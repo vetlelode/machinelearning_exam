@@ -65,7 +65,8 @@ class LogLikelihood:
         # only that the order of scores are the same.
         
         # f(x)=e^(-(x - μ)^2/(2 σ^2))/(sqrt(2 π) σ)
-        # g(x)=(x - μ)^2 / (σ^2). The ln(σ) can be dropped too
+        # g(x)=(x - μ)^2 / (σ^2). The ln(σ) can be dropped, as is a part of
+        # the constant
         
         # ln(f(x))=-(x - μ)^2/(2 σ^2)-ln(sqrt(2 π) σ)
         # ln(f(x))=-(x - μ)^2/(σ^2) /2-ln(sqrt(2 π)) -ln(σ)
@@ -99,7 +100,10 @@ class OutlierDetectorScorer:
         self.y_true = y_true
         self.y_scores = y_scores
         self.auprc = average_precision_score(y_true, y_scores, average="weighted")
+        # Calculate the different precisions and recalls for different thresholds
         self.precisions, self.recalls, self.thresholds = precision_recall_curve(y_true, y_scores)
+        # Calculate the indices of the best thresholds, emphasizing the importance
+        # of recall rate.
         self.optimal_indices = optimal_prc_indices(self.precisions, self.recalls, recall_importance=2)[:indices]
         
     def optimal_thresholds(self):
