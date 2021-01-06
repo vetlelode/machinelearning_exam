@@ -107,7 +107,7 @@ Optimal threshold: 135.24625587544423
 ```
 ## Average AURPC scores on 20 iterations:
 
-| Support | Baseline | AE R²       | AE Log-likelihood | PureLog-likelihood | Mixed sample KNN; K = 10 | Inlier Only KNN; K=20 |
+| Support | Baseline | AE L²       | AE Log-likelihood | PureLog-likelihood | Mixed sample KNN; K = 10 | Inlier Only KNN; K=20 |
 |---------|----------|-------------|-------------------|--------------------|--------------------------|-----------------------|
 | 120492  | 0.0041   | 0.300 BF 100| 0.375 BF 145      | 0.310 BF 109       | 0.706 BF 588             | 0.457                 |
 | 70492   | 0.007    | 0.400 BF 96 | 0.460 BF 120      | 0.407 BF 97        | 0.738                    | 0.515                 |
